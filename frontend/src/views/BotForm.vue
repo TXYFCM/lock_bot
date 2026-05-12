@@ -149,9 +149,10 @@
                   :min="60"
                   :max="604800"
                   :step="300"
+                  :value-on-clear="7200"
                   style="width: 100%"
                 />
-                <div class="cfg-unit">{{ $t('botCreate.defaultDurationUnit') }}</div>
+                <div class="cfg-unit">{{ formatSeconds(advancedConfig.DEFAULT_DURATION) }}</div>
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12">
@@ -171,13 +172,31 @@
                   :min="-1"
                   :max="604800"
                   :step="3600"
+                  :value-on-clear="-1"
                   style="width: 100%"
                 />
-                <div class="cfg-unit">{{ $t('botCreate.defaultDurationUnit') }}</div>
+                <div class="cfg-unit">
+                  {{
+                    advancedConfig.MAX_LOCK_DURATION === -1
+                      ? $t('botCreate.unlimited')
+                      : formatSeconds(advancedConfig.MAX_LOCK_DURATION)
+                  }}
+                </div>
                 <el-alert
                   v-if="advancedConfig.MAX_LOCK_DURATION > 86400"
                   :title="$t('botCreate.maxLockDurationWarning')"
                   type="warning"
+                  :closable="false"
+                  show-icon
+                  style="margin-top: 6px"
+                />
+                <el-alert
+                  v-if="
+                    advancedConfig.MAX_LOCK_DURATION > 0 &&
+                    advancedConfig.DEFAULT_DURATION > advancedConfig.MAX_LOCK_DURATION
+                  "
+                  :title="$t('botCreate.defaultExceedsMax')"
+                  type="error"
                   :closable="false"
                   show-icon
                   style="margin-top: 6px"
@@ -201,9 +220,10 @@
                   :min="30"
                   :max="3600"
                   :step="60"
+                  :value-on-clear="300"
                   style="width: 100%"
                 />
-                <div class="cfg-unit">{{ $t('botCreate.timeAlertUnit') }}</div>
+                <div class="cfg-unit">{{ formatSeconds(advancedConfig.TIME_ALERT) }}</div>
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12">
@@ -253,6 +273,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, QuestionFilled } from '@element-plus/icons-vue'
+import api from '../utils/api'
 import { useBotsStore } from '../stores/bots'
 import NodeBotForm from '../components/BotForm/NodeBotForm.vue'
 import DeviceBotForm from '../components/BotForm/DeviceBotForm.vue'
@@ -297,6 +318,14 @@ const advancedConfig = reactive({
   EARLY_NOTIFY: false,
   LANGUAGE: 'zh',
 })
+
+function formatSeconds(s) {
+  if (s == null || s < 0) return ''
+  if (s >= 3600 && s % 3600 === 0) return `= ${s / 3600}${t('botCreate.hours')}`
+  if (s >= 3600) return `= ${(s / 3600).toFixed(1)}${t('botCreate.hours')}`
+  if (s >= 60) return `= ${Math.round(s / 60)}${t('botCreate.minutes')}`
+  return `= ${s}${t('botCreate.seconds')}`
+}
 
 const rules = computed(() => ({
   name: [{ required: true, message: () => t('botCreate.nameRequired'), trigger: 'blur' }],
@@ -402,21 +431,11 @@ async function handleSubmit() {
       const cc = clusterConfig.value
       if (cc && Object.keys(cc).length > 0) data.cluster_configs = cc
       const needRestart = bot.value.status !== 'stopped'
-      if (needRestart) {
-        try {
-          await botsStore.stopBot(bot.value.id)
-        } catch {
-          /* non-blocking */
-        }
-      }
       await botsStore.updateBot(bot.value.id, data)
       ElMessage.success(t('common.success'))
       if (needRestart) {
-        try {
-          await botsStore.startBot(bot.value.id)
-        } catch {
-          /* non-blocking */
-        }
+        await api.post(`/bots/${bot.value.id}/stop`, null, { _silent: true }).catch(() => {})
+        await api.post(`/bots/${bot.value.id}/start`, null, { _silent: true }).catch(() => {})
       }
       router.push(`/bots/${bot.value.id}`)
     } else {
