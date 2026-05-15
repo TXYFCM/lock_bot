@@ -236,6 +236,62 @@ class TestBotAudit:
         records = _audit_records(db_session, "bot.stop")
         assert len(records) == 1
 
+    def test_update_bot_records_changes(self, client, admin_header, db_session):
+        """bot.update audit detail includes only truly changed fields."""
+        import json
+
+        resp = client.post("/api/bots", json=_sample_bot(), headers=admin_header)
+        bot_id = resp.json()["id"]
+
+        # Update name and config_overrides
+        client.put(
+            f"/api/bots/{bot_id}",
+            json={"name": "renamed", "config_overrides": {"MAX_LOCK_DURATION": 1800}},
+            headers=admin_header,
+        )
+        records = _audit_records(db_session, "bot.update")
+        assert len(records) >= 1
+        detail = json.loads(records[-1].detail)
+        # name changed
+        assert detail["name"] == {"from": "testbot", "to": "renamed"}
+        # config_overrides has diff
+        assert "config_overrides" in detail
+        assert detail["config_overrides"]["MAX_LOCK_DURATION"]["to"] == 1800
+
+    def test_update_bot_no_change_recorded(self, client, admin_header, db_session):
+        """When nothing actually changes, detail is {no_change: true}."""
+        import json
+
+        resp = client.post("/api/bots", json=_sample_bot("nochange"), headers=admin_header)
+        bot_id = resp.json()["id"]
+
+        # Submit the same name — no actual change
+        client.put(f"/api/bots/{bot_id}", json={"name": "nochange"}, headers=admin_header)
+        records = _audit_records(db_session, "bot.update")
+        assert len(records) >= 1
+        detail = json.loads(records[-1].detail)
+        assert detail == {"no_change": True}
+
+    def test_update_bot_unchanged_fields_excluded(self, client, admin_header, db_session):
+        """Unchanged credentials/cluster_configs are NOT in audit detail."""
+        import json
+
+        resp = client.post("/api/bots", json=_sample_bot("excl"), headers=admin_header)
+        bot_id = resp.json()["id"]
+
+        # Re-submit same webhook_url — should not appear in changes
+        client.put(
+            f"/api/bots/{bot_id}",
+            json={"webhook_url": "https://example.com/webhook", "name": "excl_new"},
+            headers=admin_header,
+        )
+        records = _audit_records(db_session, "bot.update")
+        assert len(records) >= 1
+        detail = json.loads(records[-1].detail)
+        # name changed, webhook did not
+        assert "name" in detail
+        assert "webhook_url" not in detail
+
 
 # ---------------------------------------------------------------------------
 # Visibility rules
