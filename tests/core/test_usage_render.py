@@ -93,3 +93,42 @@ def test_unknown_sort_falls_back_to_name():
     entries = [_entry(0, False, 600), _entry(1, False, 300)]
     out = sort_and_group(entries, "bogus", "none")
     assert [e["order_index"] for e in out] == [0, 1]
+
+
+def test_render_line_basic():
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "node1", "dev": "dev0-7", "user": "alice", "mode": "(独占)", "dur": "2.7 小时"}
+    out = render_line("{node} {dev} {user}{mode} {dur}", fields, "{node} {user}")
+    assert out == "node1 dev0-7 alice(独占) 2.7 小时"
+
+
+def test_render_line_strips_newlines():
+    """Embedded \\n / \\r in template are removed before formatting."""
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "n1", "user": "a"}
+    out = render_line("{node}\n{user}\r", fields, "{node}")
+    assert "\n" not in out and "\r" not in out
+    assert out == "n1a"
+
+
+def test_render_line_alignment_spec():
+    """Python format spec :<N applies padding."""
+    from lockbot.core.usage_render import render_line
+
+    out = render_line("{dev:<8}|", {"dev": "dev0-7"}, "{dev}")
+    assert out == "dev0-7  |"
+
+
+def test_render_line_bad_template_falls_back():
+    """Unknown placeholder or bad syntax → fallback template, no exception."""
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "n1", "user": "a", "dev": "", "mode": "", "dur": "", "status": ""}
+    # unknown placeholder {foo}
+    out = render_line("{foo} {node}", fields, "{node} {user}")
+    assert out == "n1 a"
+    # broken syntax (unbalanced brace)
+    out2 = render_line("{node", fields, "{node} {user}")
+    assert out2 == "n1 a"

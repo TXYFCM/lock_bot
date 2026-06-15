@@ -55,3 +55,24 @@ def sort_and_group(entries, sort_mode, group_mode):
         return [e for e in ordered if not e["is_idle"]] + [e for e in ordered if e["is_idle"]]
     # "none" or unknown → no grouping
     return ordered
+
+
+def render_line(template, fields, fallback_template, *, bot_name=None):
+    """Render one usage line from a str.format template.
+
+    Newlines in the template are stripped (one template = one line). On a
+    broken template (missing field / bad syntax) the fallback_template is
+    used instead and a WARNING is logged — a misconfigured template must
+    never break the whole usage output.
+    """
+    clean = template.replace("\r", "").replace("\n", "")
+    try:
+        return clean.format(**fields)
+    except (KeyError, ValueError, IndexError) as e:
+        logger.warning(
+            "Bad usage template %r for bot %s (%s); using fallback",
+            template,
+            bot_name or "?",
+            e,
+        )
+        return fallback_template.format(**fields)
