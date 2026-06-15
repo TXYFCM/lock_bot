@@ -112,15 +112,14 @@ def _is_heterogeneous(node_status):
 
 def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
     """
-    Generate display lines from locked and idle device groups.
+    Generate (is_idle, fields) rows from locked and idle device groups.
+
+    Each row is a tuple (is_idle: bool, fields: dict). fields keys:
+    node (always "" — filled by caller), dev, model, user, mode, dur, status.
     """
-    lines = []
+    rows = []
     show_model = _is_heterogeneous(node_status)
     all_segments = []
-
-    has_merged = any(len(dev_ids) > 1 for (_, dev_ids) in grouped_usage) or any(
-        len(group) > 1 for (group, _) in idle_groups
-    )
 
     for key, dev_ids in grouped_usage:
         model, status, user_keys_sorted = key
@@ -137,14 +136,23 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
                     dev_range = f"dev{dev_ids[0]}-{dev_ids[-1]}"
                 else:
                     dev_range = f"dev{dev_ids[0]}"
-
                 dev_range = dev_range if user_idx == 0 else ""
                 model_str = f"{model}" if show_model and user_idx == 0 else ""
                 duration_str = format_duration(remaining_duration(start_time, duration), config=config)
-                line = format_usage_line(
-                    dev_range, model_str, user_id + format_access_mode(status, config=config), duration_str, has_merged
+                rows.append(
+                    (
+                        False,
+                        {
+                            "node": "",
+                            "dev": dev_range,
+                            "model": model_str,
+                            "user": user_id,
+                            "mode": format_access_mode(status, config=config),
+                            "dur": duration_str,
+                            "status": "",
+                        },
+                    )
                 )
-                lines.append(line)
         elif tag == "idle":
             group, model = data
             if len(group) > 1:
@@ -152,9 +160,21 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
             else:
                 dev_range = f"dev{group[0]}"
             model_str = f"{model}" if show_model else ""
-            line = format_usage_line(dev_range, model_str, t("status.idle", config=config), "", has_merged)
-            lines.append(line)
-    return lines
+            rows.append(
+                (
+                    True,
+                    {
+                        "node": "",
+                        "dev": dev_range,
+                        "model": model_str,
+                        "user": "",
+                        "mode": "",
+                        "dur": "",
+                        "status": t("status.idle", config=config),
+                    },
+                )
+            )
+    return rows
 
 
 def get_current_usage(node_filter, bot_state, monitor_status, config=None):

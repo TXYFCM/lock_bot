@@ -7,6 +7,14 @@ from lockbot.core.device_usage_utils import (
 )
 
 
+def _texts(rows):
+    """Flatten render_device_lines rows into joined field strings for assertions."""
+    out = []
+    for _is_idle, f in rows:
+        out.append(" ".join(str(f.get(k, "")) for k in ("dev", "model", "user", "mode", "dur", "status")))
+    return out
+
+
 @pytest.fixture(autouse=True)
 def mock_time():
     """Mock time.time() to return a fixed value of 1000000."""
@@ -51,12 +59,13 @@ def test_group_locked_and_idle_and_render(make_device):
     node_status = [make_device(i, status="exclusive", user_id="张三", duration=600, dev_model="a800") for i in range(8)]
     locked = group_locked_devices(node_status)
     idle = group_idle_devices(node_status, exclude_indices={i for _, ids in locked for i in ids})
-    output = render_device_lines(node_status, locked, idle)
+    rows = render_device_lines(node_status, locked, idle)
+    texts = _texts(rows)
 
-    assert any("张三" in line for line in output)
-    assert any("dev0-7" in line or "dev0" in line for line in output)
+    assert any("张三" in t for t in texts)
+    assert any("dev0-7" in t or "dev0" in t for t in texts)
     # Homogeneous node (all a800) — model should NOT be shown
-    assert not any("a800" in line for line in output)
+    assert not any("a800" in t for t in texts)
 
 
 def test_get_current_usage_with_all_options(make_device):
@@ -96,13 +105,14 @@ def test_mixed_users_and_models(make_device):
 
     locked = group_locked_devices(node_status)
     idle = group_idle_devices(node_status, exclude_indices={i for _, ids in locked for i in ids})
-    lines = render_device_lines(node_status, locked, idle)
+    rows = render_device_lines(node_status, locked, idle)
+    texts = _texts(rows)
 
-    assert any("dev0-1" in line and "张三" in line for line in lines)
-    assert any("dev2" in line and "李四" in line for line in lines)
-    assert any("dev3" in line and "张三" in line and "v100" in line for line in lines)
-    assert any("dev4" in line and "空闲" in line and "a800" in line for line in lines)
-    assert any("dev5" in line and "空闲" in line and "v100" in line for line in lines)
+    assert any("dev0-1" in t and "张三" in t for t in texts)
+    assert any("dev2" in t and "李四" in t for t in texts)
+    assert any("dev3" in t and "张三" in t and "v100" in t for t in texts)
+    assert any("dev4" in t and "空闲" in t and "a800" in t for t in texts)
+    assert any("dev5" in t and "空闲" in t and "v100" in t for t in texts)
 
 
 def test_shared_device_multiple_users(make_device):
@@ -122,10 +132,11 @@ def test_shared_device_multiple_users(make_device):
     assert len(locked) == 1
 
     idle = group_idle_devices(node_status, set())
-    lines = render_device_lines(node_status, locked, idle)
-    assert "空闲" not in "".join(lines)
-    assert any("dev0" in line and "张三" in line for line in lines)
-    assert any("dev0" not in line and "李四" in line for line in lines)
+    rows = render_device_lines(node_status, locked, idle)
+    texts = _texts(rows)
+    assert "空闲" not in "".join(texts)
+    assert any("dev0" in t and "张三" in t for t in texts)
+    assert any("dev0" not in t and "李四" in t for t in texts)
 
 
 def test_locked_devices_different_timestamps(make_device):
@@ -137,8 +148,9 @@ def test_locked_devices_different_timestamps(make_device):
     locked = group_locked_devices(node_status)
     assert len(locked) == 2
     lines = render_device_lines(node_status, locked, [])
-    assert any("dev0" in line for line in lines)
-    assert any("dev1" in line for line in lines)
+    texts = _texts(lines)
+    assert any("dev0" in t for t in texts)
+    assert any("dev1" in t for t in texts)
 
 
 def test_idle_devices_split_if_non_continuous(make_device):
@@ -153,8 +165,9 @@ def test_idle_devices_split_if_non_continuous(make_device):
     idle = group_idle_devices(node_status, exclude_indices={1})
     assert len(idle) == 2
     lines = render_device_lines(node_status, locked, idle)
-    assert any("dev0" in line and "空闲" in line for line in lines)
-    assert any("dev2" in line and "空闲" in line for line in lines)
+    texts = _texts(lines)
+    assert any("dev0" in t and "空闲" in t for t in texts)
+    assert any("dev2" in t and "空闲" in t for t in texts)
 
 
 def test_mixed_lock_conditions(make_device):
@@ -169,10 +182,11 @@ def test_mixed_lock_conditions(make_device):
     locked = group_locked_devices(node_status)
     assert len(locked) == 4
     lines = render_device_lines(node_status, locked, [])
-    assert any("dev0" in line and "张三" in line for line in lines)
-    assert any("dev1" in line and "李四" in line for line in lines)
-    assert any("dev2" in line and "v100" in line for line in lines)
-    assert any("dev3" in line and "共享" in line for line in lines)
+    texts = _texts(lines)
+    assert any("dev0" in t and "张三" in t for t in texts)
+    assert any("dev1" in t and "李四" in t for t in texts)
+    assert any("dev2" in t and "v100" in t for t in texts)
+    assert any("dev3" in t and "共享" in t for t in texts)
 
 
 def test_idle_devices_same_model_split(make_device):
@@ -188,12 +202,13 @@ def test_idle_devices_same_model_split(make_device):
     locked = group_locked_devices(node_status)
     idle = group_idle_devices(node_status, exclude_indices={2, 3})
     lines = render_device_lines(node_status, locked, idle)
+    texts = _texts(lines)
 
-    assert any("dev0-1" in line for line in lines)
-    assert any("dev4-5" in line for line in lines)
-    assert not any("dev0-5" in line for line in lines)
+    assert any("dev0-1" in t for t in texts)
+    assert any("dev4-5" in t for t in texts)
+    assert not any("dev0-5" in t for t in texts)
     # Homogeneous — no model shown
-    assert not any("a800" in line for line in lines)
+    assert not any("a800" in t for t in texts)
 
 
 def test_shared_device_multiple_users_with_continuous_devices(make_device):
@@ -224,18 +239,19 @@ def test_shared_device_multiple_users_with_continuous_devices(make_device):
     assert len(locked) == 1
 
     idle = group_idle_devices(node_status, set())
-    lines = render_device_lines(node_status, locked, idle)
-    assert any("dev0-1" in line and "张三" in line for line in lines)
-    assert "dev0-1" not in "".join(line for line in lines if "李四" in line)
-    assert "dev0-1" not in "".join(line for line in lines if "王五" in line)
+    rows = render_device_lines(node_status, locked, idle)
+    texts = _texts(rows)
+    assert any("dev0-1" in t and "张三" in t for t in texts)
+    assert "dev0-1" not in "".join(t for t in texts if "李四" in t)
+    assert "dev0-1" not in "".join(t for t in texts if "王五" in t)
 
     user_order = []
-    for line in lines:
-        if "张三" in line:
+    for t in texts:
+        if "张三" in t:
             user_order.append("张三")
-        elif "李四" in line:
+        elif "李四" in t:
             user_order.append("李四")
-        elif "王五" in line:
+        elif "王五" in t:
             user_order.append("王五")
 
     assert user_order == ["张三", "李四", "王五"]
@@ -272,20 +288,21 @@ def test_shared_device_multiple_users_with_modified_timestamp(make_device):
     assert len(locked) == 2
 
     idle = group_idle_devices(node_status, set())
-    lines = render_device_lines(node_status, locked, idle)
+    rows = render_device_lines(node_status, locked, idle)
+    texts = _texts(rows)
 
-    assert any("dev0" in line and "张三" in line for line in lines)
-    assert any("dev1" in line and "张三" in line for line in lines)
-    assert "dev" not in "".join(line for line in lines if "李四" in line)
-    assert "dev" not in "".join(line for line in lines if "李四" in line)
+    assert any("dev0" in t and "张三" in t for t in texts)
+    assert any("dev1" in t and "张三" in t for t in texts)
+    assert "dev" not in "".join(t for t in texts if "李四" in t)
+    assert "dev" not in "".join(t for t in texts if "李四" in t)
 
     user_order = []
-    for line in lines:
-        if "张三" in line:
+    for t in texts:
+        if "张三" in t:
             user_order.append("张三")
-        elif "李四" in line:
+        elif "李四" in t:
             user_order.append("李四")
-        elif "王五" in line:
+        elif "王五" in t:
             user_order.append("王五")
 
     assert user_order == ["张三", "李四", "王五", "张三", "李四", "王五"]
@@ -323,10 +340,11 @@ def test_mixed_shared_users_and_models(make_device):
     locked = group_locked_devices(node_status)
     idle = group_idle_devices(node_status, exclude_indices={i for _, ids in locked for i in ids})
     lines = render_device_lines(node_status, locked, idle)
+    texts = _texts(lines)
 
-    assert any("dev0-1" in line and "张三" in line for line in lines)
-    assert any("dev2" in line and "李四" in line for line in lines)
-    assert any("dev3-4" in line and "李四" in line and "v100" in line for line in lines)
-    assert all("dev" not in line and "v100" not in line for line in lines if "王五" in line)
-    assert any("dev5-6" in line and "空闲" in line and "a800" in line for line in lines)
-    assert any("dev7" in line and "空闲" in line and "v100" in line for line in lines)
+    assert any("dev0-1" in t and "张三" in t for t in texts)
+    assert any("dev2" in t and "李四" in t for t in texts)
+    assert any("dev3-4" in t and "李四" in t and "v100" in t for t in texts)
+    assert all("dev" not in t and "v100" not in t for t in texts if "王五" in t)
+    assert any("dev5-6" in t and "空闲" in t and "a800" in t for t in texts)
+    assert any("dev7" in t and "空闲" in t and "v100" in t for t in texts)
