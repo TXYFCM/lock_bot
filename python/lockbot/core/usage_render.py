@@ -26,3 +26,32 @@ def min_remaining(node_status):
                 if rem is None or r < rem:
                     rem = r
     return rem
+
+
+def sort_and_group(entries, sort_mode, group_mode):
+    """Reorder node entries by sort_mode, then partition by group_mode.
+
+    entry dict must contain: order_index (int), is_idle (bool),
+    min_remaining (float|None). Sorting is stable; unknown modes fall back
+    to insertion order / no grouping.
+    """
+
+    def sort_key(e):
+        rem = e["min_remaining"]
+        # idle nodes (rem is None) sort last among non-grouped dur sorts
+        rem_val = rem if rem is not None else float("inf")
+        if sort_mode == "dur_asc":
+            return (rem_val, e["order_index"])
+        if sort_mode == "dur_desc":
+            return (-rem_val, e["order_index"])
+        # "name" or unknown → original order
+        return (e["order_index"],)
+
+    ordered = sorted(entries, key=sort_key)
+
+    if group_mode == "idle_first":
+        return [e for e in ordered if e["is_idle"]] + [e for e in ordered if not e["is_idle"]]
+    if group_mode == "idle_last":
+        return [e for e in ordered if not e["is_idle"]] + [e for e in ordered if e["is_idle"]]
+    # "none" or unknown → no grouping
+    return ordered
