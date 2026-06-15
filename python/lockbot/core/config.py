@@ -73,6 +73,26 @@ _CONFIG_SCHEMA = {
         "description": "Bot display language: zh (Chinese) or en (English)",
         "env": True,
     },
+    "USAGE_SORT": {
+        "default": "dur_asc",
+        "description": "Usage display node sort: name / dur_asc / dur_desc",
+        "env": False,
+    },
+    "USAGE_GROUP": {
+        "default": "idle_first",
+        "description": "Idle node grouping: none / idle_first / idle_last",
+        "env": False,
+    },
+    "USAGE_LINE_TEMPLATE": {
+        "default": "{node} {dev} {user}{mode} {dur}",
+        "description": "str.format template for an occupied usage line",
+        "env": False,
+    },
+    "USAGE_IDLE_TEMPLATE": {
+        "default": "{node} {dev} {status}",
+        "description": "str.format template for an idle usage line",
+        "env": False,
+    },
 }
 
 # ── Internal constants (not configurable via file/env) ─────────────────

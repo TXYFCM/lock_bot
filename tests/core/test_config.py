@@ -253,3 +253,23 @@ def test_load_invalid_integer_env():
     assert Config._config_data["PORT"] == 5000
 
     clear_env_vars(env_vars)
+
+
+def test_usage_layout_defaults():
+    """USAGE_* config keys exist with compact-sort defaults."""
+    from lockbot.core.config import Config
+
+    cfg = Config({})
+    assert cfg.get_val("USAGE_SORT") == "dur_asc"
+    assert cfg.get_val("USAGE_GROUP") == "idle_first"
+    assert cfg.get_val("USAGE_LINE_TEMPLATE") == "{node} {dev} {user}{mode} {dur}"
+    assert cfg.get_val("USAGE_IDLE_TEMPLATE") == "{node} {dev} {status}"
+
+
+def test_usage_layout_override():
+    """USAGE_* keys are overridable via config_dict."""
+    from lockbot.core.config import Config
+
+    cfg = Config({"USAGE_SORT": "name", "USAGE_GROUP": "none"})
+    assert cfg.get_val("USAGE_SORT") == "name"
+    assert cfg.get_val("USAGE_GROUP") == "none"
