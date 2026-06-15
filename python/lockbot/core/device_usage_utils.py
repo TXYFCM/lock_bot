@@ -8,6 +8,9 @@ from lockbot.core.utils import (
     remaining_duration,
 )
 
+_DEFAULT_LINE_TEMPLATE = "{node} {dev} {model}{user}{mode} {dur}"
+_DEFAULT_IDLE_TEMPLATE = "{node} {dev} {model}{status}"
+
 
 def format_usage_line(dev_range, model_str, user_or_status, duration, has_merged=False):
     """
@@ -138,7 +141,7 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
                 else:
                     dev_range = f"dev{dev_ids[0]}"
                 dev_range = dev_range if user_idx == 0 else ""
-                model_str = f"{model}" if show_model and user_idx == 0 else ""
+                model_str = f"{model} " if show_model and user_idx == 0 else ""
                 duration_str = format_duration(remaining_duration(start_time, duration), config=config)
                 rows.append(
                     (
@@ -160,7 +163,7 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
                 dev_range = f"dev{group[0]}-{group[-1]}"
             else:
                 dev_range = f"dev{group[0]}"
-            model_str = f"{model}" if show_model else ""
+            model_str = f"{model} " if show_model else ""
             rows.append(
                 (
                     True,
@@ -183,13 +186,13 @@ def get_current_usage(node_filter, bot_state, monitor_status, config=None):
     Render device usage. Layout controlled by USAGE_SORT / USAGE_GROUP /
     USAGE_LINE_TEMPLATE / USAGE_IDLE_TEMPLATE on the bot config.
     """
-    line_tpl = config.get_val("USAGE_LINE_TEMPLATE") if config else "{node} {dev} {user}{mode} {dur}"
-    idle_tpl = config.get_val("USAGE_IDLE_TEMPLATE") if config else "{node} {dev} {status}"
+    line_tpl = config.get_val("USAGE_LINE_TEMPLATE") if config else _DEFAULT_LINE_TEMPLATE
+    idle_tpl = config.get_val("USAGE_IDLE_TEMPLATE") if config else _DEFAULT_IDLE_TEMPLATE
     sort_mode = config.get_val("USAGE_SORT") if config else "dur_asc"
     group_mode = config.get_val("USAGE_GROUP") if config else "idle_first"
     bot_name = config.get_val("BOT_NAME") if config else None
-    fb_line = "{node} {dev} {user}{mode} {dur}"
-    fb_idle = "{node} {dev} {status}"
+    fb_line = _DEFAULT_LINE_TEMPLATE
+    fb_idle = _DEFAULT_IDLE_TEMPLATE
 
     # Build one entry per node, each carrying its rendered field-dict rows.
     entries = []

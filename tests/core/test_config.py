@@ -262,8 +262,8 @@ def test_usage_layout_defaults():
     cfg = Config({})
     assert cfg.get_val("USAGE_SORT") == "dur_asc"
     assert cfg.get_val("USAGE_GROUP") == "idle_first"
-    assert cfg.get_val("USAGE_LINE_TEMPLATE") == "{node} {dev} {user}{mode} {dur}"
-    assert cfg.get_val("USAGE_IDLE_TEMPLATE") == "{node} {dev} {status}"
+    assert cfg.get_val("USAGE_LINE_TEMPLATE") == "{node} {dev} {model}{user}{mode} {dur}"
+    assert cfg.get_val("USAGE_IDLE_TEMPLATE") == "{node} {dev} {model}{status}"
 
 
 def test_usage_layout_override():

@@ -84,12 +84,12 @@ _CONFIG_SCHEMA = {
         "env": False,
     },
     "USAGE_LINE_TEMPLATE": {
-        "default": "{node} {dev} {user}{mode} {dur}",
+        "default": "{node} {dev} {model}{user}{mode} {dur}",
         "description": "str.format template for an occupied usage line",
         "env": False,
     },
     "USAGE_IDLE_TEMPLATE": {
-        "default": "{node} {dev} {status}",
+        "default": "{node} {dev} {model}{status}",
         "description": "str.format template for an idle usage line",
         "env": False,
     },
