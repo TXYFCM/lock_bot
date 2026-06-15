@@ -150,6 +150,16 @@ def test_render_line_item_access_falls_back():
     assert out == "n1 a"
 
 
+def test_render_line_non_string_template_falls_back():
+    """A non-string template (int/list/None) must not crash; falls back."""
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "n1", "user": "a", "dev": "", "model": "", "mode": "", "dur": "", "status": ""}
+    assert render_line(5, fields, "{node} {user}") == "n1 a"
+    assert render_line(None, fields, "{node} {user}") == "n1 a"
+    assert render_line(["x"], fields, "{node} {user}") == "n1 a"
+
+
 def test_sort_dur_desc_keeps_idle_last():
     """Under dur_desc with no grouping, idle (None) nodes still sort last."""
     from lockbot.core.usage_render import sort_and_group

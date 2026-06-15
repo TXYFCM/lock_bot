@@ -273,3 +273,13 @@ def test_usage_layout_override():
     cfg = Config({"USAGE_SORT": "name", "USAGE_GROUP": "none"})
     assert cfg.get_val("USAGE_SORT") == "name"
     assert cfg.get_val("USAGE_GROUP") == "none"
+
+
+def test_usage_template_defaults_match_engine_constants():
+    """config.py schema defaults must match usage_render constants (kept in sync manually)."""
+    from lockbot.core.config import Config
+    from lockbot.core.usage_render import DEFAULT_IDLE_TEMPLATE, DEFAULT_LINE_TEMPLATE
+
+    cfg = Config({})
+    assert cfg.get_val("USAGE_LINE_TEMPLATE") == DEFAULT_LINE_TEMPLATE
+    assert cfg.get_val("USAGE_IDLE_TEMPLATE") == DEFAULT_IDLE_TEMPLATE

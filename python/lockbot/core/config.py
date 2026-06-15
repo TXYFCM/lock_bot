@@ -83,6 +83,7 @@ _CONFIG_SCHEMA = {
         "description": "Idle node grouping: none / idle_first / idle_last",
         "env": False,
     },
+    # Keep in sync with usage_render.DEFAULT_LINE_TEMPLATE / DEFAULT_IDLE_TEMPLATE
     "USAGE_LINE_TEMPLATE": {
         "default": "{node} {dev} {model}{user}{mode} {dur}",
         "description": "str.format template for an occupied usage line",

@@ -10,6 +10,9 @@ from lockbot.core.utils import remaining_duration
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_LINE_TEMPLATE = "{node} {dev} {model}{user}{mode} {dur}"
+DEFAULT_IDLE_TEMPLATE = "{node} {dev} {model}{status}"
+
 
 def min_remaining(node_status):
     """Return the minimum remaining lock duration across a node's active users.
@@ -61,12 +64,14 @@ def render_line(template, fields, fallback_template, *, bot_name=None):
     """Render one usage line from a str.format template.
 
     Newlines in the template are stripped (one template = one line). On a
-    broken template (missing field / bad syntax) the fallback_template is
-    used instead and a WARNING is logged — a misconfigured template must
-    never break the whole usage output.
+    broken or non-string template (missing field / bad syntax / wrong type)
+    the fallback_template is used instead and a WARNING is logged — a
+    misconfigured template must never break the whole usage output.
     """
-    clean = template.replace("\r", "").replace("\n", "")
     try:
+        if not isinstance(template, str):
+            raise TypeError(f"template must be str, got {type(template).__name__}")
+        clean = template.replace("\r", "").replace("\n", "")
         return clean.format(**fields)
     except (KeyError, ValueError, IndexError, AttributeError, TypeError) as e:
         logger.warning(

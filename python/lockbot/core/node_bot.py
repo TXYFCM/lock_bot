@@ -13,7 +13,13 @@ from lockbot.core.io import (
     log_to_file,
     save_bot_state_to_file,
 )
-from lockbot.core.usage_render import min_remaining, render_line, sort_and_group
+from lockbot.core.usage_render import (
+    DEFAULT_IDLE_TEMPLATE,
+    DEFAULT_LINE_TEMPLATE,
+    min_remaining,
+    render_line,
+    sort_and_group,
+)
 from lockbot.core.utils import (
     create_user_info,
     duration_to_seconds,
@@ -399,8 +405,8 @@ class NodeBot(BaseLockBot):
         sort_mode = self.config.get_val("USAGE_SORT")
         group_mode = self.config.get_val("USAGE_GROUP")
         bot_name = self.config.get_val("BOT_NAME")
-        fb_line = "{node} {dev} {model}{user}{mode} {dur}"
-        fb_idle = "{node} {dev} {model}{status}"
+        fb_line = DEFAULT_LINE_TEMPLATE
+        fb_idle = DEFAULT_IDLE_TEMPLATE
 
         entries = []
         order = 0

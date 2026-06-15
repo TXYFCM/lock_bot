@@ -1,15 +1,18 @@
 """Device usage display formatting and heterogeneous GPU detection."""
 
 from lockbot.core.i18n import t
-from lockbot.core.usage_render import min_remaining, render_line, sort_and_group
+from lockbot.core.usage_render import (
+    DEFAULT_IDLE_TEMPLATE,
+    DEFAULT_LINE_TEMPLATE,
+    min_remaining,
+    render_line,
+    sort_and_group,
+)
 from lockbot.core.utils import (
     format_access_mode,
     format_duration,
     remaining_duration,
 )
-
-_DEFAULT_LINE_TEMPLATE = "{node} {dev} {model}{user}{mode} {dur}"
-_DEFAULT_IDLE_TEMPLATE = "{node} {dev} {model}{status}"
 
 
 def group_locked_devices(node_status):
@@ -175,13 +178,13 @@ def get_current_usage(node_filter, bot_state, monitor_status, config=None):
     Render device usage. Layout controlled by USAGE_SORT / USAGE_GROUP /
     USAGE_LINE_TEMPLATE / USAGE_IDLE_TEMPLATE on the bot config.
     """
-    line_tpl = config.get_val("USAGE_LINE_TEMPLATE") if config else _DEFAULT_LINE_TEMPLATE
-    idle_tpl = config.get_val("USAGE_IDLE_TEMPLATE") if config else _DEFAULT_IDLE_TEMPLATE
+    line_tpl = config.get_val("USAGE_LINE_TEMPLATE") if config else DEFAULT_LINE_TEMPLATE
+    idle_tpl = config.get_val("USAGE_IDLE_TEMPLATE") if config else DEFAULT_IDLE_TEMPLATE
     sort_mode = config.get_val("USAGE_SORT") if config else "dur_asc"
     group_mode = config.get_val("USAGE_GROUP") if config else "idle_first"
     bot_name = config.get_val("BOT_NAME") if config else None
-    fb_line = _DEFAULT_LINE_TEMPLATE
-    fb_idle = _DEFAULT_IDLE_TEMPLATE
+    fb_line = DEFAULT_LINE_TEMPLATE
+    fb_idle = DEFAULT_IDLE_TEMPLATE
 
     # Build one entry per node, each carrying its rendered field-dict rows.
     entries = []
