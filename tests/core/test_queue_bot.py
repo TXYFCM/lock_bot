@@ -1130,3 +1130,30 @@ def test_notify_not_set_does_not_raise(bot):
     bot.config.set_val("CLUSTER_CONFIGS", ["test"])
     assert bot._on_state_changed is None
     bot.lock("user1", "lock test 1h")  # must not raise
+
+
+def test_queue_usage_compact_and_booking_preserved():
+    """QUEUE usage: compact+sorted, and booking_list still rendered after node."""
+    import time
+
+    from lockbot.core.queue_bot import QueueBot
+
+    cfg = {"BOT_NAME": "t", "CLUSTER_CONFIGS": ["n1", "n2"]}
+    b = QueueBot(config_dict=cfg)
+    now = int(time.time())
+    b.state.bot_state = {
+        "n1": {
+            "status": "exclusive",
+            "current_users": [{"user_id": "alice", "start_time": now, "duration": 600}],
+            "booking_list": [{"user_id": "carol", "start_time": now, "duration": 1200}],
+        },
+        "n2": {"status": "idle", "current_users": [], "booking_list": []},
+    }
+    out = b._current_usage()
+    assert "使用情况" not in out
+    assert "alice" in out
+    # booking list rendered
+    assert "carol" in out
+    # idle node n2 comes first
+    lines = [ln for ln in out.split("\n") if ln.strip()]
+    assert lines[0].startswith("n2")

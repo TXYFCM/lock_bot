@@ -9,6 +9,7 @@ from lockbot.core.io import (
     save_bot_state_to_file,
 )
 from lockbot.core.node_bot import NodeBot
+from lockbot.core.usage_render import min_remaining, render_line, sort_and_group
 from lockbot.core.utils import (
     create_user_info,
     find_user_info,
@@ -463,59 +464,104 @@ class QueueBot(NodeBot):
         return max(1.0, min_next) if min_next != float("inf") else None
 
     def _current_usage(self, node_filter=None):
-        """
-        _current_usage
-        """
+        """Render QUEUE usage honoring USAGE_* config; booking_list rendered per-node."""
+        line_tpl = self.config.get_val("USAGE_LINE_TEMPLATE")
+        idle_tpl = self.config.get_val("USAGE_IDLE_TEMPLATE")
+        sort_mode = self.config.get_val("USAGE_SORT")
+        group_mode = self.config.get_val("USAGE_GROUP")
+        bot_name = self.config.get_val("BOT_NAME")
+        fb_line = "{node} {dev} {model}{user}{mode} {dur}"
+        fb_idle = "{node} {dev} {model}{status}"
 
-        def _get_current_usage(nodes):
-            """
-            _get_current_usage
-            """
-            usage_info = ""
-            for node_key, node_status in nodes.items():
-                if node_filter is None or node_key == node_filter:
-                    if node_status["status"] == "idle":
-                        usage_info += "{:} {}\n".format(node_key, t("status.idle", config=self.config))
-                    else:
-                        for user_idx, user_info in enumerate(node_status["current_users"]):
-                            node_name = f"{node_key}" if user_idx == 0 else ""
-                            uid = user_info["user_id"]
-                            duration = format_duration(
-                                remaining_duration(user_info["start_time"], user_info["duration"]),
-                                config=self.config,
-                            )
-                            usage_info += f"{node_name} {uid}  {duration}\n"
+        def _booking_text(node_status):
+            booking_list = node_status.get("booking_list", [])
+            if not booking_list:
+                return ""
+            text = t("label.queue_list", config=self.config)
+            current_locked_time = 0
+            for user_info in node_status.get("current_users", []):
+                remain = remaining_duration(user_info["start_time"], user_info["duration"])
+                if remain > current_locked_time:
+                    current_locked_time = remain
+            accumulated_wait = current_locked_time
+            for idx, booking_user in enumerate(booking_list):
+                text += t(
+                    "label.queue_item",
+                    config=self.config,
+                    index=idx + 1,
+                    user_id=booking_user["user_id"],
+                    duration=format_duration(booking_user["duration"], config=self.config),
+                    wait_time=format_duration(accumulated_wait, config=self.config),
+                )
+                accumulated_wait += booking_user["duration"]
+            return text
 
-                    # Show queue info (booking_list)
-                    booking_list = node_status.get("booking_list", [])
-                    if booking_list:
-                        usage_info += t("label.queue_list", config=self.config)
-                        # Calculate estimated wait time based on max remaining lock time
-                        current_locked_time = 0
-                        for user_info in node_status.get("current_users", []):
-                            remain = remaining_duration(user_info["start_time"], user_info["duration"])
-                            if remain > current_locked_time:
-                                current_locked_time = remain
+        entries = []
+        order = 0
+        for node_key, node_status in self.state.bot_state.items():
+            if node_filter is not None and node_key != node_filter:
+                continue
+            rem = min_remaining(node_status)
+            rows = []
+            if node_status["status"] == "idle":
+                rows.append(
+                    (
+                        True,
+                        {
+                            "node": "",
+                            "dev": "",
+                            "model": "",
+                            "user": "",
+                            "mode": "",
+                            "dur": "",
+                            "status": t("status.idle", config=self.config),
+                        },
+                    )
+                )
+            else:
+                for user_info in node_status["current_users"]:
+                    duration = format_duration(
+                        remaining_duration(user_info["start_time"], user_info["duration"]),
+                        config=self.config,
+                    )
+                    rows.append(
+                        (
+                            False,
+                            {
+                                "node": "",
+                                "dev": "",
+                                "model": "",
+                                "user": user_info["user_id"],
+                                "mode": "",
+                                "dur": duration,
+                                "status": "",
+                            },
+                        )
+                    )
+            entries.append(
+                {
+                    "order_index": order,
+                    "is_idle": rem is None,
+                    "min_remaining": rem,
+                    "node_key": node_key,
+                    "rows": rows,
+                    "booking": _booking_text(node_status),
+                }
+            )
+            order += 1
 
-                        # Accumulated wait time
-                        accumulated_wait = current_locked_time
-                        for idx, booking_user in enumerate(booking_list):
-                            uid = booking_user["user_id"]
-                            dur_sec = booking_user["duration"]
-                            wait_time_str = format_duration(accumulated_wait, config=self.config)
-                            usage_info += t(
-                                "label.queue_item",
-                                config=self.config,
-                                index=idx + 1,
-                                user_id=uid,
-                                duration=format_duration(dur_sec, config=self.config),
-                                wait_time=wait_time_str,
-                            )
-                            accumulated_wait += dur_sec
-            usage_info += "\n"
-            return usage_info
+        ordered = sort_and_group(entries, sort_mode, group_mode)
 
         usage_info = ""
-        usage_info += _get_current_usage({k: v for k, v in self.state.bot_state.items()})
-
+        for entry in ordered:
+            node_key = entry["node_key"]
+            first = True
+            for is_idle, fields in entry["rows"]:
+                fields = dict(fields)
+                fields["node"] = node_key if first else " " * len(node_key)
+                tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
+                usage_info += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
+                first = False
+            if entry["booking"]:
+                usage_info += entry["booking"]
         return usage_info
