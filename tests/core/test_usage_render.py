@@ -132,3 +132,31 @@ def test_render_line_bad_template_falls_back():
     # broken syntax (unbalanced brace)
     out2 = render_line("{node", fields, "{node} {user}")
     assert out2 == "n1 a"
+
+
+def test_render_line_attribute_access_falls_back():
+    """Attribute-access template ({x.y}) must not raise; falls back."""
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "n1", "user": "a"}
+    out = render_line("{node.foo}", fields, "{node} {user}")
+    assert out == "n1 a"
+
+
+def test_render_line_item_access_falls_back():
+    """Item-access template ({x[y]}) must not raise; falls back."""
+    from lockbot.core.usage_render import render_line
+
+    fields = {"node": "n1", "user": "a"}
+    out = render_line("{node[bad]}", fields, "{node} {user}")
+    assert out == "n1 a"
+
+
+def test_sort_dur_desc_keeps_idle_last():
+    """Under dur_desc with no grouping, idle (None) nodes still sort last."""
+    from lockbot.core.usage_render import sort_and_group
+
+    entries = [_entry(0, False, 600), _entry(1, True, None), _entry(2, False, 900)]
+    out = sort_and_group(entries, "dur_desc", "none")
+    # active sorted desc (900 then 600), idle last
+    assert [e["order_index"] for e in out] == [2, 0, 1]

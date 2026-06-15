@@ -38,12 +38,12 @@ def sort_and_group(entries, sort_mode, group_mode):
 
     def sort_key(e):
         rem = e["min_remaining"]
-        # idle nodes (rem is None) sort last among non-grouped dur sorts
-        rem_val = rem if rem is not None else float("inf")
+        is_idle_rank = 1 if rem is None else 0  # idle always after active
+        rem_val = rem if rem is not None else 0
         if sort_mode == "dur_asc":
-            return (rem_val, e["order_index"])
+            return (is_idle_rank, rem_val, e["order_index"])
         if sort_mode == "dur_desc":
-            return (-rem_val, e["order_index"])
+            return (is_idle_rank, -rem_val, e["order_index"])
         # "name" or unknown → original order
         return (e["order_index"],)
 
@@ -68,7 +68,7 @@ def render_line(template, fields, fallback_template, *, bot_name=None):
     clean = template.replace("\r", "").replace("\n", "")
     try:
         return clean.format(**fields)
-    except (KeyError, ValueError, IndexError) as e:
+    except (KeyError, ValueError, IndexError, AttributeError, TypeError) as e:
         logger.warning(
             "Bad usage template %r for bot %s (%s); using fallback",
             template,
