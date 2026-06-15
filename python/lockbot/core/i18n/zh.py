@@ -60,9 +60,8 @@ MESSAGES = {
     "alert.your_turn": "❗️【轮到你了】\n\n",
     "alert.your_turn_reminder": "请在{timeout}内使用lock命令锁定资源, 否则将自动跳过\n\n",
     # ── Query ──
-    "query.cluster_usage_title": "ℹ️【集群使用详情】\n\n",
+    "query.cluster_usage_title": "ℹ️【集群使用详情】\n",
     # ── Device usage ──
-    "device_usage.node_header": "{node_key}使用情况:\n",
     "device_usage.hetero_warning": (
         "❗️【注意{node_key}的GPU顺序】\n"
         "CUDA_VISIBLE_DEVICES 按照算力从高到低编号\n"

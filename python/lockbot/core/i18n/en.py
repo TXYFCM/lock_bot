@@ -64,9 +64,8 @@ MESSAGES = {
         "Please use the lock command within {timeout} to lock the resource, or it will be skipped\n\n"
     ),
     # ── Query ──
-    "query.cluster_usage_title": "ℹ️ Cluster Usage Details\n\n",
+    "query.cluster_usage_title": "ℹ️ Cluster Usage Details\n",
     # ── Device usage ──
-    "device_usage.node_header": "{node_key} usage:\n",
     "device_usage.hetero_warning": (
         "❗️ Note: GPU ordering on {node_key}\n"
         "CUDA_VISIBLE_DEVICES is ordered by compute capability (high to low)\n"
