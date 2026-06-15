@@ -12,17 +12,6 @@ _DEFAULT_LINE_TEMPLATE = "{node} {dev} {model}{user}{mode} {dur}"
 _DEFAULT_IDLE_TEMPLATE = "{node} {dev} {model}{status}"
 
 
-def format_usage_line(dev_range, model_str, user_or_status, duration, has_merged=False):
-    """
-    Format a single device info line.
-    """
-    dev_range_width = 5 if not has_merged else 7
-    if model_str:
-        return f"{dev_range:<{dev_range_width}} {model_str} {user_or_status} {duration}"
-    else:
-        return f"{dev_range:<{dev_range_width}} {user_or_status} {duration}"
-
-
 def group_locked_devices(node_status):
     """
     Group locked devices by user/model/shared-mode, returning a list of

@@ -454,13 +454,21 @@ def test_node_usage_compact_sorted_default():
     b = NodeBot(config_dict=cfg)
     now = int(time.time())
     b.state.bot_state = {
-        "n1": {"status": "exclusive", "current_users": [{"user_id": "alice", "start_time": now, "duration": 600}], "booking_list": []},
-        "n2": {"status": "exclusive", "current_users": [{"user_id": "bob", "start_time": now, "duration": 300}], "booking_list": []},
+        "n1": {
+            "status": "exclusive",
+            "current_users": [{"user_id": "alice", "start_time": now, "duration": 600}],
+            "booking_list": [],
+        },
+        "n2": {
+            "status": "exclusive",
+            "current_users": [{"user_id": "bob", "start_time": now, "duration": 300}],
+            "booking_list": [],
+        },
         "n3": {"status": "idle", "current_users": [], "booking_list": []},
     }
     out = b._current_usage()
     assert "使用情况" not in out
     lines = [ln for ln in out.split("\n") if ln.strip()]
-    assert lines[0].startswith("n3")   # idle first
-    assert lines[1].startswith("n2")   # 300s
-    assert lines[2].startswith("n1")   # 600s
+    assert lines[0].startswith("n3")  # idle first
+    assert lines[1].startswith("n2")  # 300s
+    assert lines[2].startswith("n1")  # 600s
