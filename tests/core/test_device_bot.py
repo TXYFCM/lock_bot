@@ -119,7 +119,10 @@ def test_parse_command(bot):
 def test_query(bot):
     """Test query."""
     result = bot.query("user1")
-    assert "message" in result and "test使用情况" in result["message"]["body"][0]["content"]
+    content = result["message"]["body"][0]["content"]
+    assert "message" in result and "集群使用详情" in content
+    # Compact layout: node_key prefixes the device line (no separate header)
+    assert "test dev" in content
 
 
 def test_lock_unlock(bot):
