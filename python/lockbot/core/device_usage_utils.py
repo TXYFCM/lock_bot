@@ -1,6 +1,7 @@
 """Device usage display formatting and heterogeneous GPU detection."""
 
 from lockbot.core.i18n import t
+from lockbot.core.usage_render import min_remaining, render_line, sort_and_group
 from lockbot.core.utils import (
     format_access_mode,
     format_duration,
@@ -179,25 +180,57 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
 
 def get_current_usage(node_filter, bot_state, monitor_status, config=None):
     """
-    Get current device usage info including idle, locked, and in-use devices.
+    Render device usage. Layout controlled by USAGE_SORT / USAGE_GROUP /
+    USAGE_LINE_TEMPLATE / USAGE_IDLE_TEMPLATE on the bot config.
     """
-    usage_info = ""
+    line_tpl = config.get_val("USAGE_LINE_TEMPLATE") if config else "{node} {dev} {user}{mode} {dur}"
+    idle_tpl = config.get_val("USAGE_IDLE_TEMPLATE") if config else "{node} {dev} {status}"
+    sort_mode = config.get_val("USAGE_SORT") if config else "dur_asc"
+    group_mode = config.get_val("USAGE_GROUP") if config else "idle_first"
+    bot_name = config.get_val("BOT_NAME") if config else None
+    fb_line = "{node} {dev} {user}{mode} {dur}"
+    fb_idle = "{node} {dev} {status}"
 
+    # Build one entry per node, each carrying its rendered field-dict rows.
+    entries = []
+    order = 0
     for node_key, node_status in bot_state.items():
-        if (
+        if not (
             node_filter is None
             or node_key == node_filter
             or (isinstance(node_filter, list) and node_key in node_filter)
         ):
-            usage_info += t("device_usage.node_header", config=config, node_key=node_key)
+            continue
+        grouped_usage = group_locked_devices(node_status)
+        shown_indices = set()
+        for _, dev_ids in grouped_usage:
+            shown_indices.update(dev_ids)
+        idle_groups = group_idle_devices(node_status, shown_indices)
+        device_rows = render_device_lines(node_status, grouped_usage, idle_groups, config=config)
+        rem = min_remaining(node_status)
+        entries.append(
+            {
+                "order_index": order,
+                "is_idle": rem is None,
+                "min_remaining": rem,
+                "node_key": node_key,
+                "rows": device_rows,
+            }
+        )
+        order += 1
 
-            grouped_usage = group_locked_devices(node_status)
-            shown_indices = set()
-            for _, dev_ids in grouped_usage:
-                shown_indices.update(dev_ids)
-            idle_groups = group_idle_devices(node_status, shown_indices)
-            lines = render_device_lines(node_status, grouped_usage, idle_groups, config=config)
-            usage_info += "\n".join(lines) + "\n\n"
+    ordered = sort_and_group(entries, sort_mode, group_mode)
+
+    usage_info = ""
+    for entry in ordered:
+        node_key = entry["node_key"]
+        first = True
+        for is_idle, fields in entry["rows"]:
+            fields = dict(fields)
+            fields["node"] = node_key if first else " " * len(node_key)
+            tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
+            usage_info += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
+            first = False
 
     if node_filter:
         keys = node_filter if isinstance(node_filter, list) else [node_filter]

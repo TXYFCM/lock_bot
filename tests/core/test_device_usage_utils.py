@@ -348,3 +348,39 @@ def test_mixed_shared_users_and_models(make_device):
     assert all("dev" not in t and "v100" not in t for t in texts if "王五" in t)
     assert any("dev5-6" in t and "空闲" in t and "a800" in t for t in texts)
     assert any("dev7" in t and "空闲" in t and "v100" in t for t in texts)
+
+
+def test_get_current_usage_compact_and_sorted(make_device):
+    """Default layout: no per-node header, single newline, idle first, dur_asc."""
+    from lockbot.core.config import Config
+
+    cfg = Config({})
+    bot_state = {
+        "node1": [
+            make_device(i, status="exclusive", user_id="alice", duration=600, start_time=1000000) for i in range(2)
+        ],
+        "node2": [
+            make_device(i, status="exclusive", user_id="bob", duration=300, start_time=1000000) for i in range(2)
+        ],
+        "idle1": [make_device(i, status="idle") for i in range(2)],
+    }
+    out = get_current_usage(None, bot_state, {}, config=cfg)
+    # No legacy per-node header
+    assert "使用情况" not in out
+    # No blank lines between nodes
+    assert "\n\n" not in out.rstrip("\n")
+    lines = [ln for ln in out.split("\n") if ln.strip()]
+    # idle first, then node2 (300s) before node1 (600s)
+    assert lines[0].startswith("idle1")
+    assert lines[1].startswith("node2")
+    assert lines[2].startswith("node1")
+
+
+def test_get_current_usage_custom_template(make_device):
+    """Custom occupied template is honored."""
+    from lockbot.core.config import Config
+
+    cfg = Config({"USAGE_LINE_TEMPLATE": "[{node}] {user} {dur}", "USAGE_GROUP": "none", "USAGE_SORT": "name"})
+    bot_state = {"node1": [make_device(0, status="exclusive", user_id="alice", duration=600)]}
+    out = get_current_usage(None, bot_state, {}, config=cfg)
+    assert "[node1] alice" in out
