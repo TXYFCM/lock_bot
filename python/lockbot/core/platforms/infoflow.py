@@ -73,7 +73,7 @@ class InfoflowAdapter(MessageAdapter):
         command_text = extract_msg_body(msg_data["message"]["body"]).strip()
         return user_id, group_id, command_text
 
-    def build_reply(self, content, user_ids, group_id=None) -> dict:
+    def build_reply(self, content, user_ids, group_id=None, markdown=False) -> dict:
         """Build an Infoflow reply message.
 
         Args:
@@ -83,15 +83,18 @@ class InfoflowAdapter(MessageAdapter):
                 - tuple(label, href) → TEXT(label) + LINK(href) body elements
             user_ids: List of user IDs to @mention.
             group_id: Optional group chat ID (toid) for the reply target.
+            markdown: If True, string content is sent as an "MD" body so the
+                platform renders markdown (tables, colors, etc.).
 
         Returns:
             Infoflow message dict with TEXT, optional LINK, and AT body elements.
         """
+        text_type = "MD" if markdown else "TEXT"
         body = []
         items = [content] if isinstance(content, str) else content
         for item in items:
             if isinstance(item, str):
-                body.append({"type": "TEXT", "content": item})
+                body.append({"type": text_type, "content": item})
             elif isinstance(item, tuple):
                 label, url = item
                 body.append({"type": "TEXT", "content": label})

@@ -31,14 +31,16 @@ def post_webhook(msg, config=None):
     else:
         webhook_url = Config.get("WEBHOOK_URL")
 
-    # Extract the first TEXT body; everything after it goes to the last chunk only
+    # Extract the first TEXT/MD body; everything after it goes to the last chunk only
     text_body = None
     trailing_bodies = []
     for body in msg["message"]["body"]:
-        if body.get("type") == "TEXT" and text_body is None:
+        if body.get("type") in ("TEXT", "MD") and text_body is None:
             text_body = body
         else:
             trailing_bodies.append(body)
+
+    body_type = text_body["type"] if text_body else "TEXT"
 
     new_msgs = []
     if text_body:
@@ -53,7 +55,7 @@ def post_webhook(msg, config=None):
                 {
                     "message": {
                         "header": msg["message"]["header"],
-                        "body": [{"type": "TEXT", "content": part}],
+                        "body": [{"type": body_type, "content": part}],
                     }
                 }
             )
@@ -62,7 +64,7 @@ def post_webhook(msg, config=None):
             {
                 "message": {
                     "header": msg["message"]["header"],
-                    "body": [{"type": "TEXT", "content": content}] + trailing_bodies,
+                    "body": [{"type": body_type, "content": content}] + trailing_bodies,
                 }
             }
         )

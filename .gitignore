@@ -15,6 +15,9 @@ venv/
 env/
 ENV/
 
+# Runtime data
+.devdata/
+
 # IDE
 .vscode/
 .idea/

@@ -94,6 +94,11 @@ _CONFIG_SCHEMA = {
         "description": "str.format template for an idle usage line",
         "env": False,
     },
+    "QUERY_TIP": {
+        "default": "💡 按需lock，及时释放，谢谢～",
+        "description": "Optional tip appended to query output; empty string disables it",
+        "env": False,
+    },
 }
 
 # ── Internal constants (not configurable via file/env) ─────────────────

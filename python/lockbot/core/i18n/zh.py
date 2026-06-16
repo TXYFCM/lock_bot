@@ -60,7 +60,12 @@ MESSAGES = {
     "alert.your_turn": "❗️【轮到你了】\n\n",
     "alert.your_turn_reminder": "请在{timeout}内使用lock命令锁定资源, 否则将自动跳过\n\n",
     # ── Query ──
-    "query.cluster_usage_title": "ℹ️【集群使用详情】\n",
+    "query.cluster_usage_title": "机器状态报告（{timestamp}）\n",
+    "query.idle_summary_node": '<font color="blue">**空闲节点数：{idle_nodes}**</font>\n',
+    "query.idle_summary_device": '<font color="blue">**空闲节点数：{idle_nodes}，可用卡数：{idle_devs}**</font>\n',
+    "query.my_resources_header": "已占用 {resources}\n",
+    "query.table_header": "| IP地址 | 节点状态 | 卡状态 | 使用者 | 剩余时间 |\n| --- | --- | --- | --- | --- |\n",
+    "query.tip.default": "💡 按需lock，及时释放，谢谢～",
     # ── Device usage ──
     "device_usage.hetero_warning": (
         "❗️【注意{node_key}的GPU顺序】\n"

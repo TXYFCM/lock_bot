@@ -10,6 +10,7 @@ from lockbot.core.device_usage_alert import (
 )
 from lockbot.core.device_usage_utils import get_current_usage
 from lockbot.core.i18n import t
+from lockbot.core.query_render import build_device_query
 from lockbot.core.io import (
     create_or_load_device_state,
     log_to_file,
@@ -146,10 +147,8 @@ class DeviceBot(BaseLockBot):
         query current usage
         """
         with self._lock:
-            reply = self.adapter.build_reply(
-                self._msg_with_usage("query.cluster_usage_title", node_key=node_key), [user_id]
-            )
-            return reply
+            content = build_device_query(self.state.bot_state, user_id, self.config, node_filter=node_key)
+            return self.adapter.build_reply(content, [user_id], markdown=True)
 
     def lock(self, user_id, command):
         """
@@ -541,8 +540,20 @@ class DeviceBot(BaseLockBot):
 
         return max(1.0, min_next) if min_next != float("inf") else None
 
-    def _current_usage(self, node_filter=None):
+    def _idle_summary(self, node_filter=None):
+        idle_nodes = 0
+        idle_devs = 0
+        for node_key, node_status in self.state.bot_state.items():
+            if node_filter is not None and node_key != node_filter:
+                continue
+            node_idle_devs = sum(1 for dev in node_status if dev["status"] == "idle")
+            if node_idle_devs > 0:
+                idle_nodes += 1
+            idle_devs += node_idle_devs
+        return t("query.idle_summary_device", config=self.config, idle_nodes=idle_nodes, idle_devs=idle_devs)
+
+    def _current_usage(self, node_filter=None, user_id=None):
         """
         Get a text description of the current cluster device usage (supports merged display and heterogeneous hints).
         """
-        return get_current_usage(node_filter, self.state.bot_state, {}, config=self.config)
+        return get_current_usage(node_filter, self.state.bot_state, {}, config=self.config, user_id=user_id)

@@ -469,7 +469,7 @@ class QueueBot(NodeBot):
 
         return max(1.0, min_next) if min_next != float("inf") else None
 
-    def _current_usage(self, node_filter=None):
+    def _current_usage(self, node_filter=None, user_id=None):
         """Render QUEUE usage honoring USAGE_* config; booking_list rendered per-node."""
         line_tpl = self.config.get_val("USAGE_LINE_TEMPLATE")
         idle_tpl = self.config.get_val("USAGE_IDLE_TEMPLATE")
@@ -548,6 +548,8 @@ class QueueBot(NodeBot):
                 {
                     "order_index": order,
                     "is_idle": rem is None,
+                    "is_mine": user_id is not None
+                    and any(user_info["user_id"] == user_id for user_info in node_status.get("current_users", [])),
                     "min_remaining": rem,
                     "node_key": node_key,
                     "rows": rows,
@@ -558,16 +560,27 @@ class QueueBot(NodeBot):
 
         ordered = sort_and_group(entries, sort_mode, group_mode)
 
+        def render_entries(entries_to_render):
+            text = ""
+            for entry in entries_to_render:
+                node_key = entry["node_key"]
+                first = True
+                for is_idle, fields in entry["rows"]:
+                    fields = dict(fields)
+                    fields["node"] = node_key if first else " " * len(node_key)
+                    tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
+                    text += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
+                    first = False
+                if entry["booking"]:
+                    text += entry["booking"]
+            return text
+
+        my_entries = [entry for entry in ordered if entry["is_mine"]]
+        rest_entries = [entry for entry in ordered if not entry["is_mine"]]
+
         usage_info = ""
-        for entry in ordered:
-            node_key = entry["node_key"]
-            first = True
-            for is_idle, fields in entry["rows"]:
-                fields = dict(fields)
-                fields["node"] = node_key if first else " " * len(node_key)
-                tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
-                usage_info += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
-                first = False
-            if entry["booking"]:
-                usage_info += entry["booking"]
+        if my_entries:
+            usage_info += t("query.my_resources_header", config=self.config)
+            usage_info += render_entries(my_entries)
+        usage_info += render_entries(rest_entries)
         return usage_info

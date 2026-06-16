@@ -63,7 +63,7 @@ def test_query(bot):
     """Test query."""
     result = bot.query("user1")
     assert "message" in result, "result missing 'message' field"
-    assert "集群使用详情" in result["message"]["body"][0]["content"], "query info missing usage description"
+    assert "机器状态报告" in result["message"]["body"][0]["content"], "query info missing usage description"
     assert "test" in result["message"]["body"][0]["content"], "query info missing node name"
 
 

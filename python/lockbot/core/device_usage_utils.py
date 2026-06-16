@@ -173,7 +173,7 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
     return rows
 
 
-def get_current_usage(node_filter, bot_state, monitor_status, config=None):
+def get_current_usage(node_filter, bot_state, monitor_status, config=None, user_id=None):
     """
     Render device usage. Layout controlled by USAGE_SORT / USAGE_GROUP /
     USAGE_LINE_TEMPLATE / USAGE_IDLE_TEMPLATE on the bot config.
@@ -207,6 +207,13 @@ def get_current_usage(node_filter, bot_state, monitor_status, config=None):
             {
                 "order_index": order,
                 "is_idle": rem is None,
+                "is_mine": user_id is not None
+                and any(
+                    current_user["user_id"] == user_id
+                    for dev in node_status
+                    if dev.get("status") != "idle"
+                    for current_user in dev.get("current_users", [])
+                ),
                 "min_remaining": rem,
                 "node_key": node_key,
                 "rows": device_rows,
@@ -216,16 +223,27 @@ def get_current_usage(node_filter, bot_state, monitor_status, config=None):
 
     ordered = sort_and_group(entries, sort_mode, group_mode)
 
+    def render_entries(entries_to_render):
+        text = ""
+        for entry in entries_to_render:
+            node_key = entry["node_key"]
+            first = True
+            for is_idle, fields in entry["rows"]:
+                fields = dict(fields)
+                fields["node"] = node_key if first else " " * len(node_key)
+                tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
+                text += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
+                first = False
+        return text
+
+    my_entries = [entry for entry in ordered if entry["is_mine"]]
+    rest_entries = [entry for entry in ordered if not entry["is_mine"]]
+
     usage_info = ""
-    for entry in ordered:
-        node_key = entry["node_key"]
-        first = True
-        for is_idle, fields in entry["rows"]:
-            fields = dict(fields)
-            fields["node"] = node_key if first else " " * len(node_key)
-            tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
-            usage_info += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
-            first = False
+    if my_entries:
+        usage_info += t("query.my_resources_header", config=config)
+        usage_info += render_entries(my_entries)
+    usage_info += render_entries(rest_entries)
 
     if node_filter:
         keys = node_filter if isinstance(node_filter, list) else [node_filter]

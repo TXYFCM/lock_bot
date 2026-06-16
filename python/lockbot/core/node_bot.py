@@ -13,6 +13,7 @@ from lockbot.core.io import (
     log_to_file,
     save_bot_state_to_file,
 )
+from lockbot.core.query_render import build_node_query
 from lockbot.core.usage_render import (
     DEFAULT_IDLE_TEMPLATE,
     DEFAULT_LINE_TEMPLATE,
@@ -106,8 +107,8 @@ class NodeBot(BaseLockBot):
         Query usage of a node
         """
         with self._lock:
-            content = self._msg_with_usage("query.cluster_usage_title", node_key=node_key)
-            return self.adapter.build_reply(content, [user_id])
+            content = build_node_query(self.state.bot_state, user_id, self.config, node_filter=node_key)
+            return self.adapter.build_reply(content, [user_id], markdown=True)
 
     def lock(self, user_id, command):
         """
@@ -398,7 +399,15 @@ class NodeBot(BaseLockBot):
 
         return max(1.0, min_next) if min_next != float("inf") else None
 
-    def _current_usage(self, node_filter=None):
+    def _idle_summary(self, node_filter=None):
+        idle_nodes = sum(
+            1
+            for node_key, node_status in self.state.bot_state.items()
+            if (node_filter is None or node_key == node_filter) and node_status["status"] == "idle"
+        )
+        return t("query.idle_summary_node", config=self.config, idle_nodes=idle_nodes)
+
+    def _current_usage(self, node_filter=None, user_id=None):
         """Render NODE usage honoring USAGE_* layout config."""
         line_tpl = self.config.get_val("USAGE_LINE_TEMPLATE")
         idle_tpl = self.config.get_val("USAGE_IDLE_TEMPLATE")
@@ -450,20 +459,39 @@ class NodeBot(BaseLockBot):
                         )
                     )
             entries.append(
-                {"order_index": order, "is_idle": rem is None, "min_remaining": rem, "node_key": node_key, "rows": rows}
+                {
+                    "order_index": order,
+                    "is_idle": rem is None,
+                    "is_mine": user_id is not None
+                    and any(user_info["user_id"] == user_id for user_info in node_status.get("current_users", [])),
+                    "min_remaining": rem,
+                    "node_key": node_key,
+                    "rows": rows,
+                }
             )
             order += 1
 
         ordered = sort_and_group(entries, sort_mode, group_mode)
 
+        def render_entries(entries_to_render):
+            text = ""
+            for entry in entries_to_render:
+                node_key = entry["node_key"]
+                first = True
+                for is_idle, fields in entry["rows"]:
+                    fields = dict(fields)
+                    fields["node"] = node_key if first else " " * len(node_key)
+                    tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
+                    text += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
+                    first = False
+            return text
+
+        my_entries = [entry for entry in ordered if entry["is_mine"]]
+        rest_entries = [entry for entry in ordered if not entry["is_mine"]]
+
         usage_info = ""
-        for entry in ordered:
-            node_key = entry["node_key"]
-            first = True
-            for is_idle, fields in entry["rows"]:
-                fields = dict(fields)
-                fields["node"] = node_key if first else " " * len(node_key)
-                tpl, fb = (idle_tpl, fb_idle) if is_idle else (line_tpl, fb_line)
-                usage_info += render_line(tpl, fields, fb, bot_name=bot_name).rstrip() + "\n"
-                first = False
+        if my_entries:
+            usage_info += t("query.my_resources_header", config=self.config)
+            usage_info += render_entries(my_entries)
+        usage_info += render_entries(rest_entries)
         return usage_info

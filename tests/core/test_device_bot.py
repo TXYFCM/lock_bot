@@ -120,9 +120,9 @@ def test_query(bot):
     """Test query."""
     result = bot.query("user1")
     content = result["message"]["body"][0]["content"]
-    assert "message" in result and "集群使用详情" in content
-    # Compact layout: node_key prefixes the device line (no separate header)
-    assert "test dev" in content
+    assert "message" in result and "机器状态报告" in content
+    assert "| IP地址 | 节点状态 | 卡状态 | 使用者 |" in content
+    assert "test" in content and "dev" in content
 
 
 def test_lock_unlock(bot):
