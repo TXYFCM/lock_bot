@@ -15,13 +15,6 @@
     </div>
     <el-card>
       <el-form v-loading="loading" label-width="140px">
-        <el-form-item :label="$t('settings.platformUrl')">
-          <el-input
-            v-model="form.platform_url"
-            :placeholder="$t('settings.platformUrlPlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('settings.githubUrl')">
           <el-input
             v-model="form.github_url"
@@ -65,7 +58,6 @@ const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const form = ref({
-  platform_url: '',
   github_url: '',
   admin_contact: '',
   news_content: '',

@@ -19,13 +19,12 @@ from lockbot.backend.app.settings.models import SiteSetting
 router = APIRouter(tags=["settings"])
 
 # --- Public keys (exposed without auth) ---
-PUBLIC_KEYS = {"platform_url", "admin_contact"}
+PUBLIC_KEYS = {"admin_contact"}
 
 # --- Env-var fallbacks ---
 _DEV_MODE = os.environ.get("DEV_MODE", "false").lower() in ("true", "1", "yes")
 
 _ENV_FALLBACKS = {
-    "platform_url": os.environ.get("PLATFORM_URL", ""),
     "admin_contact": os.environ.get("ADMIN_CONTACT", ""),
     "github_url": os.environ.get("GITHUB_URL", "https://github.com/dynamicheart/lockbot"),
     "news_content": "",

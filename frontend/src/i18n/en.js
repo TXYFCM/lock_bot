@@ -325,8 +325,6 @@ export default {
 
   // === Site Settings ===
   settings: {
-    platformUrl: 'Platform URL',
-    platformUrlPlaceholder: 'e.g. http://192.168.1.1:8080',
     githubUrl: 'GitHub URL',
     githubUrlPlaceholder: 'e.g. https://github.com/user/repo',
     adminContact: 'Admin Contact',
@@ -374,8 +372,7 @@ export default {
     deviceCount: 'Device Count',
     queueInfo: 'QUEUE mode uses queue scheduling. Only one user can use a resource at a time.',
     duplicateNode: 'Duplicate name',
-    nodeNameInvalid: 'Only letters, digits, underscores and hyphens',
-    nodeNameTooLong: 'Max 8 characters',
+    nodeNameTooLong: 'Max 64 characters',
   },
 
   // === Audit Logs ===

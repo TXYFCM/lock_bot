@@ -1,0 +1,53 @@
+# VCS
+.git
+.gitignore
+
+# Python caches / build
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# Runtime / dev data (must NOT leak into image)
+.devdata/
+data/
+*.db
+python/lockbot/data/.encryption_key
+*.env
+
+# Frontend deps & build output (built inside image)
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# IDE / OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Tooling
+.deepeval/
+migrations/
+tests/

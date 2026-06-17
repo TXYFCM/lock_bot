@@ -235,7 +235,6 @@ function _handleGet(url, params) {
   // Public settings
   if (url === '/settings') {
     return [
-      { key: 'platform_url', value: mockSettings.platform_url },
       { key: 'admin_contact', value: mockSettings.admin_contact },
     ]
   }

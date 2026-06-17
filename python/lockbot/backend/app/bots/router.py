@@ -152,7 +152,7 @@ def _inject_site_settings(config: dict, db: Session | None = None):
         from lockbot.backend.app.settings.router import get_all_settings
 
         site = get_all_settings(db)
-        for key in ("github_url", "platform_url"):
+        for key in ("github_url",):
             if key not in config or not config[key]:
                 val = site.get(key, "")
                 if val:
@@ -1030,6 +1030,23 @@ def get_bot_logs(
 # ── Webhook endpoint ────────────────────────────────────────
 
 
+def _derive_base_url(request: Request) -> str:
+    """Derive the externally-visible deployment base URL from the request.
+
+    Honors reverse-proxy headers (X-Forwarded-Proto / X-Forwarded-Host) when
+    present, falling back to the Host header and request scheme. Returns
+    ``scheme://host[:port]`` with no trailing slash, or "" if undeterminable.
+    """
+    headers = request.headers
+    host = headers.get("x-forwarded-host") or headers.get("host", "")
+    if not host:
+        return ""
+    # X-Forwarded-Host may contain a comma-separated list; take the first.
+    host = host.split(",")[0].strip()
+    proto = headers.get("x-forwarded-proto", "").split(",")[0].strip() or request.url.scheme
+    return f"{proto}://{host}".rstrip("/")
+
+
 @router.post("/webhook/{bot_id}")
 @limiter.limit("120/minute")
 async def webhook(bot_id: int, request: Request, db: Session = Depends(get_db)):
@@ -1061,7 +1078,9 @@ async def webhook(bot_id: int, request: Request, db: Session = Depends(get_db)):
         return await _reply_bot_not_running(bot_id, form, args, body, db)
 
     try:
-        text, code, meta = handle_webhook(instance.bot, raw_form=form, raw_args=args, raw_body=body)
+        text, code, meta = handle_webhook(
+            instance.bot, raw_form=form, raw_args=args, raw_body=body, base_url=_derive_base_url(request)
+        )
     except Exception as e:
         tb = traceback.format_exc()
         logger.exception("Webhook handler crashed for bot %d", bot_id)

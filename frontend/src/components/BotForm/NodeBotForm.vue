@@ -26,14 +26,11 @@
         <el-input
           v-model="node.name"
           :placeholder="$t('botForm.nodeNamePlaceholder')"
-          :maxlength="8"
-          :class="{ 'is-duplicate': isDuplicate(i), 'is-invalid': isInvalidName(i) }"
+          :maxlength="64"
+          :class="{ 'is-duplicate': isDuplicate(i) }"
           class="node-input"
         />
         <span v-if="isDuplicate(i)" class="dup-tip">{{ $t('botForm.duplicateNode') }}</span>
-        <span v-else-if="isInvalidName(i)" class="dup-tip">{{
-          $t('botForm.nodeNameInvalid')
-        }}</span>
         <el-button
           class="node-remove"
           :icon="Delete"
@@ -85,18 +82,10 @@ function parseInit() {
   return names.map((name) => ({ id: ++nodeIdSeq, name }))
 }
 
-const NODE_NAME_RE = /^[a-zA-Z0-9_-]*$/
-
 function isDuplicate(i) {
   const val = nodes.value[i]?.name?.trim()
   if (!val) return false
   return nodes.value.some((n, j) => j !== i && n.name?.trim() === val)
-}
-
-function isInvalidName(i) {
-  const val = nodes.value[i]?.name?.trim()
-  if (!val) return false
-  return !NODE_NAME_RE.test(val)
 }
 
 function addNode() {
@@ -179,7 +168,7 @@ watch(
 watch(
   nodes,
   () => {
-    const filtered = nodes.value.filter((n) => n.name?.trim() && NODE_NAME_RE.test(n.name.trim()))
+    const filtered = nodes.value.filter((n) => n.name?.trim())
     syncing = true
     emit(
       'update:modelValue',
@@ -291,8 +280,7 @@ watch(
   margin-top: 8px;
   border-style: dashed;
 }
-.is-duplicate :deep(.el-input__wrapper),
-.is-invalid :deep(.el-input__wrapper) {
+.is-duplicate :deep(.el-input__wrapper) {
   box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 .dup-tip {

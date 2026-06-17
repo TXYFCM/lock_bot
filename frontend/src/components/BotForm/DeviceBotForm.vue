@@ -29,14 +29,11 @@
             <el-input
               v-model="node.name"
               :placeholder="$t('botForm.nodeNamePlaceholder')"
-              :maxlength="6"
-              :class="{ 'is-duplicate': isDuplicate(i), 'is-invalid': isInvalidName(i) }"
+              :maxlength="64"
+              :class="{ 'is-duplicate': isDuplicate(i) }"
               class="node-name-input"
             />
             <span v-if="isDuplicate(i)" class="dup-tip">{{ $t('botForm.duplicateNode') }}</span>
-            <span v-else-if="isInvalidName(i)" class="dup-tip">{{
-              $t('botForm.nodeNameInvalid')
-            }}</span>
             <span class="device-count-badge">{{ totalDevices(node) }}</span>
           </div>
           <div class="device-card-header-right">
@@ -163,7 +160,6 @@ function totalDevices(node) {
 }
 
 function handleDeviceModelBlur(dev, node) {
-  dev.model = (dev.model || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
   mergeDevices(node)
 }
 
@@ -180,18 +176,10 @@ function mergeDevices(node) {
   }
 }
 
-const NODE_NAME_RE = /^[a-zA-Z0-9_-]*$/
-
 function isDuplicate(i) {
   const val = nodes.value[i]?.name?.trim()
   if (!val) return false
   return nodes.value.some((n, j) => j !== i && n.name?.trim() === val)
-}
-
-function isInvalidName(i) {
-  const val = nodes.value[i]?.name?.trim()
-  if (!val) return false
-  return !NODE_NAME_RE.test(val)
 }
 
 function addNode() {
@@ -269,7 +257,7 @@ watch(
   () => {
     const result = {}
     for (const node of nodes.value) {
-      if (!node.name || !NODE_NAME_RE.test(node.name.trim())) continue
+      if (!node.name) continue
       const devices = []
       for (const dev of node.devices) {
         if (dev.model) {
@@ -433,8 +421,7 @@ watch(
 .add-node-btn {
   border-style: dashed;
 }
-.is-duplicate :deep(.el-input__wrapper),
-.is-invalid :deep(.el-input__wrapper) {
+.is-duplicate :deep(.el-input__wrapper) {
   box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 .dup-tip {

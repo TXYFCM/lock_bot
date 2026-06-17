@@ -319,8 +319,6 @@ export default {
 
   // === Site Settings ===
   settings: {
-    platformUrl: '部署平台 URL',
-    platformUrlPlaceholder: '例如 http://192.168.1.1:8080',
     githubUrl: 'GitHub 地址',
     githubUrlPlaceholder: '例如 https://github.com/user/repo',
     adminContact: '管理员联系方式',
@@ -368,8 +366,7 @@ export default {
     deviceCount: '设备数量',
     queueInfo: 'QUEUE 模式使用排队调度，一次只有一人可以使用资源。',
     duplicateNode: '名称重复',
-    nodeNameInvalid: '仅支持英文、数字、下划线、横杠',
-    nodeNameTooLong: '不超过 8 个字符',
+    nodeNameTooLong: '不超过 64 个字符',
   },
 
   // === Audit Logs ===

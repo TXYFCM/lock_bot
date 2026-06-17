@@ -67,6 +67,10 @@ logs/
 # Sensitive data
 python/lockbot/data/.encryption_key
 
+# Deploy bundle (built image tar + env with real keys; hand-carried, never commit)
+deploy-bundle/
+docker/lockbot.env
+
 # Evaluation/tools
 .deepeval/
 

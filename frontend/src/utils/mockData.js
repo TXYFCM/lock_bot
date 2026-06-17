@@ -479,7 +479,6 @@ export function nextBotId() {
 // ---------------------------------------------------------------------------
 
 export const mockSettings = {
-  platform_url: '',
   github_url: 'https://github.com/dynamicheart/lockbot',
   admin_contact: '',
   news_content: '',
