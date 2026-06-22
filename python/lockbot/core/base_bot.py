@@ -50,21 +50,6 @@ class BaseLockBot:
 
     logger = logging.getLogger("lockbot.timer")
 
-    # Deployment address auto-detected from incoming webhook requests.
-    # Shared across all bot instances in the process (same deployment host).
-    _detected_platform_url = ""
-
-    @classmethod
-    def set_detected_platform_url(cls, url: str) -> None:
-        """Record the deployment base URL observed on a verified webhook request."""
-        if url:
-            BaseLockBot._detected_platform_url = url
-
-    @classmethod
-    def get_detected_platform_url(cls) -> str:
-        """Return the auto-detected deployment base URL (empty if none seen yet)."""
-        return BaseLockBot._detected_platform_url
-
     # ------------------------------------------------------------------ init
     def __init__(self, config_dict=None, *, config=None, state=None, lock=None, adapter=None):
         """
@@ -225,13 +210,9 @@ class BaseLockBot:
         # ---- project links (only on explicit help) ----
         help_links = []
         if extra_info is None:
-            platform_url = self.get_detected_platform_url()
             github_url = self._get_site_value("github_url") or self.config.get_val("GITHUB_URL")
-            if platform_url or github_url:
-                help_links.append("\n")
-            if platform_url:
-                help_links.append((t("help.platform_url", config=self.config), platform_url))
             if github_url:
+                help_links.append("\n")
                 help_links.append((t("help.github_url", config=self.config), github_url))
 
         if help_links:

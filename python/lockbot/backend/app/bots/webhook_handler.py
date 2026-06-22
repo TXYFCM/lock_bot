@@ -22,15 +22,12 @@ def handle_webhook(
 
     Args:
         base_url: Externally-visible deployment base URL (scheme://host[:port])
-            derived from the request. Recorded after signature verification so
-            the bot help message can show the live deployment address.
+            derived from the request. Currently unused.
 
     Returns:
         Tuple of (response_text, status_code, meta).
         meta contains: user_id, command, group_id (if available).
     """
-    from lockbot.core.base_bot import BaseLockBot
-
     adapter = getattr(bot, "adapter", InfoflowAdapter(config=bot.config))
     meta = {}
 
@@ -41,7 +38,6 @@ def handle_webhook(
         rn = raw_form.get("rn")
         timestamp = raw_form.get("timestamp")
         if adapter.verify_request(signature, rn=rn, timestamp=timestamp):
-            BaseLockBot.set_detected_platform_url(base_url)
             return echostr, 200, {"event": "url_verification"}
         return "check signature fail", 401, {"event": "url_verification_failed"}
 
@@ -52,9 +48,6 @@ def handle_webhook(
 
     if not adapter.verify_request(signature, rn=rn, timestamp=timestamp):
         return "check signature fail", 401, {"event": "signature_failed"}
-
-    # Request is verified — record the deployment address for the help message.
-    BaseLockBot.set_detected_platform_url(base_url)
 
     # Decrypt message
     msg_data = adapter.decrypt_payload(raw_body)

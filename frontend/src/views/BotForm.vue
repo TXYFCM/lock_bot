@@ -403,7 +403,9 @@ async function handleSubmit() {
       return
     }
     if (form.bot_type === 'DEVICE') {
-      const totalDevs = Object.values(cc).flat().length
+      const totalDevs = Object.values(cc)
+        .map((v) => (Array.isArray(v) ? v : v?.devices || []))
+        .flat().length
       if (totalDevs === 0) {
         ElMessage.error(t('botForm.deviceRequired'))
         return
@@ -412,7 +414,9 @@ async function handleSubmit() {
   } else {
     const cc = clusterConfig.value
     if (cc && Object.keys(cc).length > 0 && form.bot_type === 'DEVICE') {
-      const totalDevs = Object.values(cc).flat().length
+      const totalDevs = Object.values(cc)
+        .map((v) => (Array.isArray(v) ? v : v?.devices || []))
+        .flat().length
       if (totalDevs === 0) {
         ElMessage.error(t('botForm.deviceRequired'))
         return

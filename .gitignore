@@ -60,6 +60,7 @@ _lockbot_backup_*.db_
 # Distribution
 *.whl
 *.tar.gz
+*.zip
 
 # Logs directory
 logs/

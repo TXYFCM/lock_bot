@@ -100,7 +100,9 @@ function _validateNodeQueueState(state, clusterConfigs, warnings, t) {
 function _validateDeviceState(state, clusterConfigs, warnings, t) {
   const ccKeys = new Set(Object.keys(clusterConfigs))
   const result = {}
-  for (const [nodeKey, devices] of Object.entries(clusterConfigs)) {
+  for (const [nodeKey, raw] of Object.entries(clusterConfigs)) {
+    // New DEVICE format: {ip, devices}; old: list of model strings
+    const devices = Array.isArray(raw) ? raw : raw?.devices || []
     if (!(nodeKey in state)) {
       warnings.push(_w('stateValidation.nodeMissing', { name: nodeKey }, t))
       result[nodeKey] = devices.map((model, i) => ({
@@ -239,7 +241,8 @@ export function validateBotState(state, botType, clusterConfigs, t) {
 function _buildDefaultState(clusterConfigs, botType) {
   if (botType === 'DEVICE') {
     const state = {}
-    for (const [nodeKey, devices] of Object.entries(clusterConfigs)) {
+    for (const [nodeKey, raw] of Object.entries(clusterConfigs)) {
+      const devices = Array.isArray(raw) ? raw : raw?.devices || []
       state[nodeKey] = devices.map((model, i) => ({
         dev_id: i,
         dev_model: model,

@@ -31,6 +31,16 @@ _DEV_SPEC = r"(\s+dev\s*((([0-9]+(\s*[,，、]\s*[0-9]+)*)|([0-9]+-[0-9]+))))"  
 _DURATION = r"([0-9]+\.?[0-9]*)([dhm])"  # e.g. 3d, 2.5h, 30m
 
 
+def _node_devices(cluster_configs, node_key):
+    """Return device-model list for a node, supporting both old and new formats.
+
+    New: cluster_configs[node_key] = {"ip": "...", "devices": [...]}
+    Old: cluster_configs[node_key] = [...]
+    """
+    v = cluster_configs[node_key]
+    return v["devices"] if isinstance(v, dict) else v
+
+
 class DeviceBot(BaseLockBot):
     """
     DeviceBot class
@@ -117,11 +127,11 @@ class DeviceBot(BaseLockBot):
         else:
             # When dev is not specified, lock all devices on the node
             for node_key in node_key_list:
-                dev_ids = list(range(len(cluster_configs[node_key])))
+                dev_ids = list(range(len(_node_devices(cluster_configs, node_key))))
                 dev_ids_list.append(dev_ids)
 
         for node_key, dev_ids in zip(node_key_list, dev_ids_list, strict=True):
-            num_devs = len(cluster_configs[node_key])
+            num_devs = len(_node_devices(cluster_configs, node_key))
             if not (all([dev_id >= 0 for dev_id in dev_ids]) and all([dev_id < num_devs for dev_id in dev_ids])):
                 error_reply = self.show_error(
                     user_id, t("error.dev_id_out_of_range", config=self.config, node_key=node_key, num_devs=num_devs)

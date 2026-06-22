@@ -33,6 +33,12 @@
               :class="{ 'is-duplicate': isDuplicate(i) }"
               class="node-name-input"
             />
+            <el-input
+              v-model="node.ip"
+              placeholder="IP（可选）"
+              :maxlength="64"
+              class="node-ip-input"
+            />
             <span v-if="isDuplicate(i)" class="dup-tip">{{ $t('botForm.duplicateNode') }}</span>
             <span class="device-count-badge">{{ totalDevices(node) }}</span>
           </div>
@@ -131,15 +137,22 @@ const quickModels = ['h20', 'a800', 'p800']
 function parseInit() {
   const cfg = props.modelValue
   if (!cfg || typeof cfg !== 'object')
-    return [{ id: ++nodeIdSeq, name: '', devices: [{ model: '', count: 1 }] }]
+    return [{ id: ++nodeIdSeq, name: '', ip: '', devices: [{ model: '', count: 1 }] }]
   const entries = Object.entries(cfg)
   if (entries.length === 0)
-    return [{ id: ++nodeIdSeq, name: '', devices: [{ model: '', count: 1 }] }]
-  return entries.map(([name, devices]) => ({
-    id: ++nodeIdSeq,
-    name,
-    devices: Array.isArray(devices) ? groupDevices(devices) : [{ model: '', count: 1 }],
-  }))
+    return [{ id: ++nodeIdSeq, name: '', ip: '', devices: [{ model: '', count: 1 }] }]
+  return entries.map(([name, v]) => {
+    // New: {ip, devices: [...]}; old: [models...]
+    const isNew = v && !Array.isArray(v) && typeof v === 'object'
+    const ip = isNew ? v.ip || '' : ''
+    const deviceList = isNew ? v.devices || [] : Array.isArray(v) ? v : []
+    return {
+      id: ++nodeIdSeq,
+      name,
+      ip,
+      devices: deviceList.length ? groupDevices(deviceList) : [{ model: '', count: 1 }],
+    }
+  })
 }
 
 function groupDevices(arr) {
@@ -183,7 +196,7 @@ function isDuplicate(i) {
 }
 
 function addNode() {
-  nodes.value.push({ id: ++nodeIdSeq, name: '', devices: [{ model: '', count: 1 }] })
+  nodes.value.push({ id: ++nodeIdSeq, name: '', ip: '', devices: [{ model: '', count: 1 }] })
 }
 
 function quickAddDevice(node, model) {
@@ -206,7 +219,7 @@ function copyNode(i) {
   const src = nodes.value[i]
   if (!src) return
   const newDevices = src.devices.map((d) => ({ ...d }))
-  nodes.value.splice(i + 1, 0, { id: ++nodeIdSeq, name: '', devices: newDevices })
+  nodes.value.splice(i + 1, 0, { id: ++nodeIdSeq, name: '', ip: '', devices: newDevices })
 }
 
 function removeNode(i) {
@@ -265,7 +278,7 @@ watch(
           for (let k = 0; k < dev.count; k++) devices.push(m)
         }
       }
-      result[node.name] = devices
+      result[node.name] = { ip: node.ip?.trim() ?? '', devices }
     }
     emit('update:modelValue', result)
   },
@@ -359,6 +372,10 @@ watch(
 }
 .node-name-input {
   width: 180px;
+}
+.node-ip-input {
+  width: 160px;
+  flex-shrink: 0;
 }
 .device-count-badge {
   background: var(--el-color-primary-light-9);

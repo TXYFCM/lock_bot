@@ -44,7 +44,9 @@ export const useBotsStore = defineStore('bots', () => {
     let resourceCounts
     if (bot.bot_type === 'DEVICE') {
       let totalDevices = 0
-      for (const devices of Object.values(configs)) {
+      for (const v of Object.values(configs)) {
+        // New: {ip, devices}; old: [models...]
+        const devices = Array.isArray(v) ? v : v?.devices
         totalDevices += Array.isArray(devices) ? devices.length : 0
       }
       resourceCounts = { nodes: Object.keys(configs).length, devices: totalDevices }

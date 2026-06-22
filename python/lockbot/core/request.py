@@ -15,8 +15,65 @@ _RETRY_DELAY = 1.0
 _DEFAULT_HEADERS = {"Content-Type": "application/json"}
 
 
+def _first_cell_empty(line: str) -> bool:
+    """Return True if the markdown row's first column cell is empty (whitespace only)."""
+    parts = line.split("|")
+    return len(parts) > 1 and parts[1].strip() == ""
+
+
+def _adjust_split_for_node_boundary(content: str, split_index: int) -> int:
+    """Adjust split_index backward to avoid splitting a node's rows across chunks.
+
+    If the chunk that would follow split_index starts with a continuation row
+    (empty first cell, i.e. a device row whose node name is on a previous line),
+    walk backward in content[:split_index] to find the newline just before that
+    node's first row, and return that position instead.
+    """
+    remainder = content[split_index:].lstrip()
+    first_line = remainder.split("\n", 1)[0] if remainder else ""
+    if not (first_line.startswith("|") and _first_cell_empty(first_line)):
+        return split_index
+
+    # Walk backwards to find the last row with a non-empty, non-separator first cell
+    before = content[:split_index]
+    pos = len(before)
+    while pos > 0:
+        nl = before.rfind("\n", 0, pos)
+        if nl == -1:
+            return split_index
+        line_start = nl + 1
+        line_end = before.find("\n", line_start)
+        line = before[line_start:] if line_end == -1 else before[line_start:line_end]
+        if line.startswith("|") and not _first_cell_empty(line):
+            sep = line.replace(" ", "").replace("-", "").replace("|", "")
+            if sep != "":  # not a separator row (| --- | --- |)
+                return nl if nl > 0 else split_index
+        pos = nl
+    return split_index
+
+
+def _extract_md_table_header(content: str) -> str:
+    """Extract the markdown table header (column + separator rows) from content.
+
+    Returns the header string (including trailing newline) if found, else "".
+    A markdown table header is two consecutive lines matching:
+        | col | col | ...
+        | --- | --- | ...
+    """
+    lines = content.split("\n")
+    for i in range(len(lines) - 1):
+        if lines[i].startswith("|") and lines[i + 1].startswith("|"):
+            sep = lines[i + 1].replace(" ", "").replace("-", "").replace("|", "")
+            if sep == "":
+                return lines[i] + "\n" + lines[i + 1] + "\n"
+    return ""
+
+
 def post_webhook(msg, config=None):
-    """Send a message via webhook, splitting long TEXT content into chunks.
+    """Send a message via webhook, splitting long TEXT/MD content into chunks.
+
+    For MD messages that contain a markdown table, subsequent chunks are
+    prepended with the table header so the platform can render them correctly.
 
     Args:
         msg: Message dict with structure {"message": {"header": {}, "body": []}}.
@@ -45,11 +102,18 @@ def post_webhook(msg, config=None):
     new_msgs = []
     if text_body:
         content = text_body["content"]
+        # For MD messages, detect table header to prepend on continuation chunks
+        md_table_header = _extract_md_table_header(content) if body_type == "MD" else ""
         # Split long content: prefer newline near end, otherwise hard-split at MAX_LENGTH
         while len(content) > MAX_LENGTH:
             split_index = content.rfind("\n", 0, MAX_LENGTH)
             if split_index == -1 or split_index < int(MAX_LENGTH * 0.8):
                 split_index = MAX_LENGTH
+            # For MD table content, try to avoid splitting a node's device rows across chunks
+            if md_table_header:
+                split_index = _adjust_split_for_node_boundary(content, split_index)
+                if split_index <= 0:
+                    split_index = MAX_LENGTH
             part = content[:split_index]
             new_msgs.append(
                 {
@@ -59,7 +123,9 @@ def post_webhook(msg, config=None):
                     }
                 }
             )
-            content = content[split_index:].lstrip()
+            remainder = content[split_index:].lstrip()
+            # Prepend table header on continuation chunks so MD renders correctly
+            content = (md_table_header + remainder) if md_table_header else remainder
         new_msgs.append(
             {
                 "message": {

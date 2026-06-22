@@ -30,6 +30,12 @@
           :class="{ 'is-duplicate': isDuplicate(i) }"
           class="node-input"
         />
+        <el-input
+          v-model="node.ip"
+          placeholder="IP（可选）"
+          :maxlength="64"
+          class="node-ip-input"
+        />
         <span v-if="isDuplicate(i)" class="dup-tip">{{ $t('botForm.duplicateNode') }}</span>
         <el-button
           class="node-remove"
@@ -68,18 +74,26 @@ const dropPos = ref('')
 
 function parseInit() {
   const cfg = props.modelValue
-  let names = ['']
+  let entries = [{ name: '', ip: '' }]
   if (cfg) {
     if (Array.isArray(cfg)) {
-      names = cfg.length ? [...cfg] : ['']
+      // Legacy: ["nodeA", "nodeB"]
+      entries = cfg.length ? cfg.map((name) => ({ name, ip: '' })) : [{ name: '', ip: '' }]
     } else if (cfg.clusters) {
-      names = cfg.clusters.map((c) => c.name || c.full_name || '')
+      entries = cfg.clusters.map((c) => ({ name: c.name || c.full_name || '', ip: c.ip || '' }))
     } else if (typeof cfg === 'object') {
+      // New: {name: ip_str}; or legacy {name: name}
       const keys = Object.keys(cfg)
-      names = keys.length ? keys : ['']
+      if (keys.length) {
+        entries = keys.map((name) => {
+          const v = cfg[name]
+          const ip = typeof v === 'string' ? (v === name ? '' : v) : ''
+          return { name, ip }
+        })
+      }
     }
   }
-  return names.map((name) => ({ id: ++nodeIdSeq, name }))
+  return entries.map(({ name, ip }) => ({ id: ++nodeIdSeq, name, ip }))
 }
 
 function isDuplicate(i) {
@@ -89,7 +103,7 @@ function isDuplicate(i) {
 }
 
 function addNode() {
-  nodes.value.push({ id: ++nodeIdSeq, name: '' })
+  nodes.value.push({ id: ++nodeIdSeq, name: '', ip: '' })
 }
 
 function removeNode(i) {
@@ -144,18 +158,27 @@ watch(
     syncing = true
     const newNodes = (() => {
       const cfg = newVal
-      let names = ['']
+      let entries = [{ name: '', ip: '' }]
       if (cfg) {
         if (Array.isArray(cfg)) {
-          names = cfg.length ? [...cfg] : ['']
+          entries = cfg.length ? cfg.map((name) => ({ name, ip: '' })) : [{ name: '', ip: '' }]
         } else if (cfg.clusters) {
-          names = cfg.clusters.map((c) => c.name || c.full_name || '')
+          entries = cfg.clusters.map((c) => ({
+            name: c.name || c.full_name || '',
+            ip: c.ip || '',
+          }))
         } else if (typeof cfg === 'object') {
           const keys = Object.keys(cfg)
-          names = keys.length ? keys : ['']
+          if (keys.length) {
+            entries = keys.map((name) => {
+              const v = cfg[name]
+              const ip = typeof v === 'string' ? (v === name ? '' : v) : ''
+              return { name, ip }
+            })
+          }
         }
       }
-      return names.map((name) => ({ id: ++nodeIdSeq, name }))
+      return entries.map(({ name, ip }) => ({ id: ++nodeIdSeq, name, ip }))
     })()
     nodes.value = newNodes
     nextTick(() => {
@@ -172,7 +195,7 @@ watch(
     syncing = true
     emit(
       'update:modelValue',
-      filtered.map((n) => n.name.trim())
+      Object.fromEntries(filtered.map((n) => [n.name.trim(), n.ip?.trim() ?? '']))
     )
     nextTick(() => {
       syncing = false
@@ -259,6 +282,10 @@ watch(
 }
 .node-input {
   flex: 1;
+}
+.node-ip-input {
+  width: 160px;
+  flex-shrink: 0;
 }
 .node-remove {
   opacity: 0;

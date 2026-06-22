@@ -92,19 +92,19 @@ const _MSGS = {
     'help.query_node_example': '    query {node} (query node {node})\n',
     // Help DEVICE examples
     'help.lock_all_devices_example': '    lock {node} (lock all devices on node)\n',
-    'help.lock_device_example': '    lock {node} 0 (lock device 0 on {node})\n',
-    'help.lock_device_duration_example': '    lock {node} 0 2h (lock device 0 on {node} for 2h)\n',
-    'help.lock_device_range_example': '    lock {node} 0-3 (lock devices 0-3 on {node})\n',
-    'help.slock_device_range_example': '    slock {node} 0-3 (shared-lock devices 0-3 on {node})\n',
+    'help.lock_device_example': '    lock {node} dev0 (lock device 0 on {node})\n',
+    'help.lock_device_duration_example': '    lock {node} dev0 2h (lock device 0 on {node} for 2h)\n',
+    'help.lock_device_range_example': '    lock {node} dev0-3 (lock devices 0-3 on {node})\n',
+    'help.slock_device_range_example': '    slock {node} dev0-3 (shared-lock devices 0-3 on {node})\n',
     'help.unlock_device_example': '    unlock {node} (release all your devices on node)\n',
-    'help.unlock_device_range_example': '    unlock {node} 0-3 (release devices 0-3 on {node})\n',
-    'help.free_device_range_example': '    free {node} 0-3 (release devices 0-3 on {node})\n',
+    'help.unlock_device_range_example': '    unlock {node} dev0-3 (release devices 0-3 on {node})\n',
+    'help.free_device_range_example': '    free {node} dev0-3 (release devices 0-3 on {node})\n',
     'help.free_node_all_example': '    free {node} (release all your devices on {node})\n',
     'help.kickout_device_example': '    kickout {node} (force-release all devices on node)\n',
     'help.kickout_device_range_example':
-      '    kickout {node} 0-3 (force-release devices 0-3 on {node})\n',
+      '    kickout {node} dev0-3 (force-release devices 0-3 on {node})\n',
     'help.kickout_device_range2_example':
-      '    kickout {node} 0 (force-release device 0 on {node})\n',
+      '    kickout {node} dev0 (force-release device 0 on {node})\n',
     'help.resource_list_title': 'Resource list:\n',
     'help.resource_list_item': '    {node_key}: dev_id 0~{max_dev}\n',
     // Help QUEUE extras
@@ -197,17 +197,17 @@ const _MSGS = {
     'help.query_node_example': '    query {node} (查询{node}节点)\n',
     // Help DEVICE examples
     'help.lock_all_devices_example': '    lock {node} (锁定当前节点的所有设备)\n',
-    'help.lock_device_example': '    lock {node} 0 (锁定{node}节点的0号设备)\n',
-    'help.lock_device_duration_example': '    lock {node} 0 2h (锁定{node}节点的0号设备2小时)\n',
-    'help.lock_device_range_example': '    lock {node} 0-3 (锁定{node}节点的0-3号设备)\n',
-    'help.slock_device_range_example': '    slock {node} 0-3 (共享锁定{node}节点的0-3号设备)\n',
+    'help.lock_device_example': '    lock {node} dev0 (锁定{node}节点的0号设备)\n',
+    'help.lock_device_duration_example': '    lock {node} dev0 2h (锁定{node}节点的0号设备2小时)\n',
+    'help.lock_device_range_example': '    lock {node} dev0-3 (锁定{node}节点的0-3号设备)\n',
+    'help.slock_device_range_example': '    slock {node} dev0-3 (共享锁定{node}节点的0-3号设备)\n',
     'help.unlock_device_example': '    unlock {node} (释放当前节点所有申请过的设备)\n',
-    'help.unlock_device_range_example': '    unlock {node} 0-3 (释放{node}节点的0-3号设备)\n',
-    'help.free_device_range_example': '    free {node} 0-3 (释放{node}节点的0-3号设备)\n',
+    'help.unlock_device_range_example': '    unlock {node} dev0-3 (释放{node}节点的0-3号设备)\n',
+    'help.free_device_range_example': '    free {node} dev0-3 (释放{node}节点的0-3号设备)\n',
     'help.free_node_all_example': '    free {node} (释放{node}节点所有申请过的设备)\n',
     'help.kickout_device_example': '    kickout {node} (强制释放当前节点的所有设备)\n',
-    'help.kickout_device_range_example': '    kickout {node} 0-3 (强制释放{node}节点的0-3号设备)\n',
-    'help.kickout_device_range2_example': '    kickout {node} 0 (强制释放{node}节点的0号设备)\n',
+    'help.kickout_device_range_example': '    kickout {node} dev0-3 (强制释放{node}节点的0-3号设备)\n',
+    'help.kickout_device_range2_example': '    kickout {node} dev0 (强制释放{node}节点的0号设备)\n',
     'help.resource_list_title': '资源列表:\n',
     'help.resource_list_item': '    {node_key}: dev_id 0~{max_dev}\n',
     // Help QUEUE extras
@@ -324,6 +324,14 @@ function parseDurationTail(command) {
   }
 }
 
+// Extract the device-models array from a CLUSTER_CONFIGS value.
+// Supports legacy list form [models...] and new dict form {ip, devices: [...]}.
+function _nodeDevices(v) {
+  if (Array.isArray(v)) return v
+  if (v && typeof v === 'object' && Array.isArray(v.devices)) return v.devices
+  return []
+}
+
 function parseDevSpec(rest, clusterConfigs, nodeKey) {
   const m = rest.match(new RegExp(`dev\\s*(.+)`, 'i'))
   if (!m) return null
@@ -336,7 +344,7 @@ function parseDevSpec(rest, clusterConfigs, nodeKey) {
   } else {
     devIds = [...new Set(devStr.split(/[,，、]/).map(Number))]
   }
-  const numDevs = Array.isArray(clusterConfigs[nodeKey]) ? clusterConfigs[nodeKey].length : 0
+  const numDevs = _nodeDevices(clusterConfigs[nodeKey]).length
   if (devIds.some((d) => d < 0 || d >= numDevs)) return null
   return devIds
 }
@@ -1168,7 +1176,8 @@ function _executeDeviceCommand(state, userId, cmd, rest, cfg, usageText, lang) {
     const nodeDevIds = {}
     for (const nk of uniqueKeys) {
       nodeDevIds[nk] =
-        parseDevSpec(devRemainder, CLUSTER_CONFIGS, nk) || CLUSTER_CONFIGS[nk].map((_, i) => i)
+        parseDevSpec(devRemainder, CLUSTER_CONFIGS, nk) ||
+        _nodeDevices(CLUSTER_CONFIGS[nk]).map((_, i) => i)
     }
 
     // Pass 1: Validate
@@ -1473,7 +1482,8 @@ function _buildHelp(
     text += _t(lang, 'help.query_at_bot')
     text += _t(lang, 'help.query_node_example', { node: ex0 })
     text += '\n' + _t(lang, 'help.resource_list_title')
-    for (const [nk, devs] of Object.entries(CLUSTER_CONFIGS)) {
+    for (const [nk, raw] of Object.entries(CLUSTER_CONFIGS)) {
+      const devs = _nodeDevices(raw)
       text += _t(lang, 'help.resource_list_item', { node_key: nk, max_dev: devs.length - 1 })
     }
   } else if (botType === 'QUEUE') {

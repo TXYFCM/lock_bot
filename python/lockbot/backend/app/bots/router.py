@@ -109,9 +109,25 @@ def _get_user_bot(bot_id: int, user: User, db: Session) -> Bot:
 
 
 def _normalize_cluster_configs(cc):
-    """Normalize device model strings to lowercase."""
+    """Normalize device model strings to lowercase.
+
+    Supports DEVICE bot's new dict form `{node: {"ip": str, "devices": [...]}}`,
+    DEVICE bot's old form `{node: [...]}`, NODE/QUEUE bot's `{name: ip_str}`,
+    and the legacy list form `[name, ...]`.
+    """
     if isinstance(cc, dict):
-        return {k: [m.lower() for m in v] if isinstance(v, list) else v for k, v in cc.items()}
+        result = {}
+        for k, v in cc.items():
+            if isinstance(v, list):
+                result[k] = [m.lower() for m in v]
+            elif isinstance(v, dict) and "devices" in v:
+                result[k] = {
+                    "ip": v.get("ip", "") or "",
+                    "devices": [m.lower() for m in v.get("devices", [])],
+                }
+            else:
+                result[k] = v
+        return result
     if isinstance(cc, list):
         return [k.lower() for k in cc]
     return cc
@@ -352,8 +368,16 @@ def update_bot(
         if new_json != (bot.cluster_configs or ""):
             old_configs = json.loads(bot.cluster_configs) if bot.cluster_configs else None
             if isinstance(body.cluster_configs, dict):
-                # DEVICE bot: {node: [devices...]} → summary with device counts
-                node_summary = {k: len(v) if isinstance(v, list) else v for k, v in body.cluster_configs.items()}
+                # DEVICE bot: {node: [devices]} or {node: {"ip","devices"}} → summary with device counts
+                # NODE/QUEUE bot: {node: ip_str} → summary keeps the value as-is
+                def _cc_count(v):
+                    if isinstance(v, list):
+                        return len(v)
+                    if isinstance(v, dict):
+                        return len(v.get("devices", []))
+                    return v
+
+                node_summary = {k: _cc_count(v) for k, v in body.cluster_configs.items()}
                 changes["cluster_configs"] = node_summary
             else:
                 # NODE bot: list of node names → show from/to
@@ -837,7 +861,9 @@ def _validate_node_queue_state(state, cluster_configs, warnings, config):
 
 def _validate_device_state(state, cluster_configs, warnings, config):
     result = {}
-    for node_key, devices in cluster_configs.items():
+    for node_key, raw in cluster_configs.items():
+        # New DEVICE format: {ip, devices}; old: list of model strings
+        devices = raw["devices"] if isinstance(raw, dict) else raw
         if node_key not in state:
             warnings.append(t("state.node_missing", config=config, name=node_key))
             result[node_key] = [

@@ -223,7 +223,8 @@ function getResourceLabel(row) {
     const nodes = Object.keys(configs).length
     if (row.bot_type === 'DEVICE') {
       let totalDevices = 0
-      for (const devices of Object.values(configs)) {
+      for (const v of Object.values(configs)) {
+        const devices = Array.isArray(v) ? v : v?.devices
         totalDevices += Array.isArray(devices) ? devices.length : 0
       }
       return `${nodes}n / ${totalDevices}d`

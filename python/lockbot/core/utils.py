@@ -90,3 +90,21 @@ def format_access_mode(status: str, config=None) -> str:
     if status == "shared":
         return t("access_mode.shared", config=config)
     return t("access_mode.exclusive", config=config)
+
+
+def resolve_node_key(input_key: str, cluster_configs: dict) -> str:
+    """Resolve a user-supplied node name to the actual key in cluster_configs.
+
+    Matches in priority order:
+    1. Exact match.
+    2. The actual key starts with input_key followed by '(' (e.g. "node28" → "node28(10.x.x.x)").
+
+    Returns the matched key, or the original input_key if no match found.
+    """
+    if input_key in cluster_configs:
+        return input_key
+    prefix = input_key + "("
+    for key in cluster_configs:
+        if key.startswith(prefix):
+            return key
+    return input_key

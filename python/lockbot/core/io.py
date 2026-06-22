@@ -105,6 +105,14 @@ def log_to_file(user_id, command, node_key, dev_ids="", duration="", config=None
 # ── Device state ───────────────────────────────────────────────
 
 
+def _device_list(v):
+    """Return device-model list from a CLUSTER_CONFIGS DEVICE entry.
+
+    New format: {"ip": "...", "devices": [...]}; old format: [...].
+    """
+    return v["devices"] if isinstance(v, dict) else v
+
+
 def create_or_load_device_state(config=None):
     """Create or load device cluster state, applying max-duration limits.
 
@@ -119,11 +127,11 @@ def create_or_load_device_state(config=None):
         node_key: [
             {
                 "dev_id": dev_id,
-                "dev_model": devices[dev_id],
+                "dev_model": _device_list(devices)[dev_id],
                 "status": STATUS_IDLE,
                 "current_users": [],
             }
-            for dev_id in range(len(devices))
+            for dev_id in range(len(_device_list(devices)))
         ]
         for node_key, devices in cluster_configs.items()
     }

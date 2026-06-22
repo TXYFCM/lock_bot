@@ -284,8 +284,15 @@ class Config:
             if not isinstance(cluster_configs, dict):
                 raise ConfigValidationError("CLUSTER_CONFIGS must be a dictionary.")
             for k, v in cluster_configs.items():
-                if not isinstance(v, list):
-                    raise ConfigValidationError(f"DEVICE CLUSTER_CONFIGS must map to list. Got {type(v)} for key '{k}'")
+                if isinstance(v, dict):
+                    if not isinstance(v.get("devices"), list):
+                        raise ConfigValidationError(
+                            f"DEVICE CLUSTER_CONFIGS dict form must contain a 'devices' list for key '{k}'"
+                        )
+                elif not isinstance(v, list):
+                    raise ConfigValidationError(
+                        f"DEVICE CLUSTER_CONFIGS must map to list or dict. Got {type(v)} for key '{k}'"
+                    )
 
     @classmethod
     def show_all(cls, as_json=False):

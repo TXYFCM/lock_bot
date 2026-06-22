@@ -35,9 +35,13 @@ const mockState = computed(() => {
 
   if (props.botType === 'DEVICE') {
     if (typeof cc !== 'object' || Array.isArray(cc)) return null
-    const entries = Object.entries(cc).filter(
-      ([, models]) => Array.isArray(models) && models.length
-    )
+    // Support new {ip, devices} dict and old list-of-models forms
+    const entries = Object.entries(cc)
+      .map(([nodeName, v]) => {
+        const models = Array.isArray(v) ? v : v?.devices
+        return [nodeName, Array.isArray(models) ? models : []]
+      })
+      .filter(([, models]) => models.length)
     if (!entries.length) return null
 
     // Walk devices globally: #0 exclusive alice, #1 shared bob+carol, rest idle
@@ -69,9 +73,15 @@ const mockState = computed(() => {
     return state
   }
 
-  // NODE / QUEUE
-  if (!Array.isArray(cc)) return null
-  const nodes = cc.filter(Boolean)
+  // NODE / QUEUE: support legacy array and new {name: ip_str} dict
+  let nodes
+  if (Array.isArray(cc)) {
+    nodes = cc.filter(Boolean)
+  } else if (cc && typeof cc === 'object') {
+    nodes = Object.keys(cc).filter(Boolean)
+  } else {
+    return null
+  }
   if (!nodes.length) return null
 
   const isQueue = props.botType === 'QUEUE'

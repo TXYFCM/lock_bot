@@ -19,6 +19,28 @@ _DEV_FREE = '<font color="green">FREE</font>'
 _DEV_BUSY = '<font color="red">BUSY</font>'
 
 
+def _get_ip(cluster_configs, node_key) -> str:
+    """Extract IP from a cluster_configs entry, returning '' when no real IP is set.
+
+    Supports new (DEVICE: {ip, devices}; NODE/QUEUE: ip_str) and old formats.
+    """
+    if not isinstance(cluster_configs, dict):
+        return ""
+    v = cluster_configs.get(node_key, "")
+    if isinstance(v, dict):
+        return v.get("ip", "") or ""
+    # NODE/QUEUE old format normalized to {name: name}; treat name==value as no IP
+    if isinstance(v, str):
+        return "" if v == node_key else v
+    return ""
+
+
+def _node_label(cluster_configs, node_key) -> str:
+    """Format a node label as 'name(ip)' if IP is set, else just 'name'."""
+    ip = _get_ip(cluster_configs, node_key)
+    return f"{node_key}({ip})" if ip else node_key
+
+
 def _now_str():
     return datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -51,6 +73,7 @@ def build_device_query(bot_state, user_id, config, node_filter=None):
 
     # ── markdown table ───────────────────────────────────────────────────
     lines.append(t("query.table_header", config=config))
+    cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
     entries = []
     for order, (node_key, devs) in enumerate(bot_state.items()):
         rem = min_remaining(devs)
@@ -81,7 +104,7 @@ def build_device_query(bot_state, user_id, config, node_filter=None):
                 mode = fields["mode"].strip("()")
                 user_cell = f"{fields['user']}（{mode}）".strip()
                 dur_cell = fields["dur"] or "--"
-            node_cell = node_key if first_row else ""
+            node_cell = _node_label(cluster_configs, node_key) if first_row else ""
             node_status_cell = node_state if first_row else ""
             lines.append(_md_row(node_cell, node_status_cell, dev_cell, user_cell, dur_cell))
             first_row = False
@@ -104,6 +127,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
         lines.append(tip + "\n")
 
     lines.append(t("query.table_header", config=config))
+    cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
     entries = []
     for order, (node_key, ns) in enumerate(bot_state.items()):
         rem = min_remaining(ns)
@@ -114,8 +138,9 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
 
     for node_key, ns, _rem, _mine, _order in sorted(entries, key=_node_sort_key):
         node_status_cell = _NODE_FULL if ns["status"] == "idle" else _NODE_BUSY
+        node_label = _node_label(cluster_configs, node_key)
         if ns["status"] == "idle":
-            lines.append(_md_row(node_key, node_status_cell, "--", "--", "--"))
+            lines.append(_md_row(node_label, node_status_cell, "--", "--", "--"))
         else:
             first_row = True
             for user_info in ns["current_users"]:
@@ -124,7 +149,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
                     remaining_duration(user_info["start_time"], user_info["duration"]), config=config
                 )
                 user_cell = f"{user_info['user_id']}（{mode_str}）"
-                node_cell = node_key if first_row else ""
+                node_cell = node_label if first_row else ""
                 node_st_cell = node_status_cell if first_row else ""
                 lines.append(_md_row(node_cell, node_st_cell, "--", user_cell, dur_str or "--"))
                 first_row = False
@@ -135,17 +160,20 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
 # ── helpers ───────────────────────────────────────────────────────────────
 
 def _node_sort_key(entry):
-    """Order: my locked nodes first, then idle nodes, then others by
-    remaining duration ascending. entry = (key, state, rem, is_mine, order).
+    """Order: my locked nodes first, then idle (FREE), then PARTIAL
+    (some cards free), then BUSY. Within a tier, by remaining duration asc.
+    entry = (key, state, rem, is_mine, order).
     """
-    _key, _state, rem, is_mine, order = entry
+    _key, state, rem, is_mine, order = entry
     is_idle = rem is None
     if is_mine:
         rank = 0
     elif is_idle:
         rank = 1
-    else:
+    elif _is_device_partial(state):
         rank = 2
+    else:
+        rank = 3
     rem_val = rem if rem is not None else 0
     return (rank, rem_val, order)
 
@@ -157,3 +185,14 @@ def _node_state_device(devs):
     if idle_count == 0:
         return _NODE_BUSY
     return _NODE_PARTIAL
+
+
+def _is_device_partial(state):
+    """True if a DEVICE node has a mix of idle and locked devices.
+
+    NODE/QUEUE nodes (dict state) are never PARTIAL.
+    """
+    if not isinstance(state, list):
+        return False
+    idle = sum(1 for d in state if d["status"] == "idle")
+    return 0 < idle < len(state)
