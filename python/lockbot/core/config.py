@@ -99,6 +99,21 @@ _CONFIG_SCHEMA = {
         "description": "Optional tip appended to query output; empty string disables it",
         "env": False,
     },
+    "SSH_USER": {
+        "default": "v_qiujie04",
+        "description": "SSH username for xpu-smi collection on target nodes",
+        "env": True,
+    },
+    "SSH_CMD_TIMEOUT": {
+        "default": 15,
+        "description": "Per-node SSH command timeout in seconds for xpu-smi collection",
+        "env": True,
+    },
+    "XPU_USAGE_TTL": {
+        "default": 60,
+        "description": "TTL in seconds for cached GPU utilization/container results",
+        "env": True,
+    },
 }
 
 # ── Internal constants (not configurable via file/env) ─────────────────

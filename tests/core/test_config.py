@@ -283,3 +283,17 @@ def test_usage_template_defaults_match_engine_constants():
     cfg = Config({})
     assert cfg.get_val("USAGE_LINE_TEMPLATE") == DEFAULT_LINE_TEMPLATE
     assert cfg.get_val("USAGE_IDLE_TEMPLATE") == DEFAULT_IDLE_TEMPLATE
+
+
+def test_xpu_collector_config_defaults():
+    config = Config({})
+    assert config.get_val("SSH_USER") == "v_qiujie04"
+    assert config.get_val("SSH_CMD_TIMEOUT") == 15
+    assert config.get_val("XPU_USAGE_TTL") == 60
+
+
+def test_xpu_collector_config_override():
+    config = Config({"SSH_USER": "alice", "SSH_CMD_TIMEOUT": 5, "XPU_USAGE_TTL": 30})
+    assert config.get_val("SSH_USER") == "alice"
+    assert config.get_val("SSH_CMD_TIMEOUT") == 5
+    assert config.get_val("XPU_USAGE_TTL") == 30
