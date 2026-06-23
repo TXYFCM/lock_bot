@@ -11,6 +11,7 @@ from lockbot.core.device_usage_utils import (
 )
 from lockbot.core.usage_render import min_remaining
 from lockbot.core.utils import format_access_mode, format_duration, remaining_duration
+from lockbot.core.xpu_collector import NodeUsage
 
 _NODE_FULL = '<font color="green">FREE</font>'
 _NODE_BUSY = '<font color="red">BUSY</font>'
@@ -49,7 +50,7 @@ def _md_row(*cells):
     return "| " + " | ".join(str(c) for c in cells) + " |\n"
 
 
-def build_device_query(bot_state, user_id, config, node_filter=None):
+def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=None):
     """Build full markdown query text for a DEVICE bot."""
     if node_filter is not None:
         bot_state = {k: v for k, v in bot_state.items() if k == node_filter}
@@ -72,7 +73,8 @@ def build_device_query(bot_state, user_id, config, node_filter=None):
         lines.append(tip + "\n")
 
     # ── markdown table ───────────────────────────────────────────────────
-    lines.append(t("query.table_header", config=config))
+    header_key = "query.table_header_xpu" if xpu_usage is not None else "query.table_header"
+    lines.append(t(header_key, config=config))
     cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
     entries = []
     for order, (node_key, devs) in enumerate(bot_state.items()):
@@ -106,7 +108,20 @@ def build_device_query(bot_state, user_id, config, node_filter=None):
                 dur_cell = fields["dur"] or "--"
             node_cell = _node_label(cluster_configs, node_key) if first_row else ""
             node_status_cell = node_state if first_row else ""
-            lines.append(_md_row(node_cell, node_status_cell, dev_cell, user_cell, dur_cell))
+            if xpu_usage is not None:
+                if first_row:
+                    usage = xpu_usage.get(node_key, NodeUsage(util=None, container=""))
+                    util_cell = f"{usage.util}%" if usage.util is not None else "N/A"
+                    container_cell = usage.container or ""
+                else:
+                    util_cell = ""
+                    container_cell = ""
+                lines.append(_md_row(
+                    node_cell, node_status_cell, dev_cell, user_cell, dur_cell,
+                    util_cell, container_cell,
+                ))
+            else:
+                lines.append(_md_row(node_cell, node_status_cell, dev_cell, user_cell, dur_cell))
             first_row = False
 
     return "".join(lines)
