@@ -1,7 +1,7 @@
 import subprocess
 from unittest import mock
 
-from lockbot.core.xpu_collector import NodeUsage, _parse_util, _parse_pid
+from lockbot.core.xpu_collector import NodeUsage, _parse_pid, _parse_util
 
 
 def test_parse_util_averages_column():
@@ -25,15 +25,19 @@ def test_parse_pid_none_when_no_match():
 
 def test_collect_one_unreachable_returns_failed():
     from lockbot.core import xpu_collector
+
     with mock.patch.object(xpu_collector, "_ping", return_value=False):
         assert xpu_collector._collect_one("10.0.0.1", "alice", 5) == xpu_collector._FAILED
 
 
 def test_collect_one_free_node_has_util_no_container():
     from lockbot.core import xpu_collector
-    with mock.patch.object(xpu_collector, "_ping", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_ok", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_run") as run:
+
+    with (
+        mock.patch.object(xpu_collector, "_ping", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_ok", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_run") as run,
+    ):
         # first call: xpu-smi (free), second: xpu-smi -m (util=0)
         run.side_effect = [
             "No running processes found",
@@ -46,14 +50,17 @@ def test_collect_one_free_node_has_util_no_container():
 
 def test_collect_one_busy_resolves_container():
     from lockbot.core import xpu_collector
-    with mock.patch.object(xpu_collector, "_ping", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_ok", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_run") as run:
+
+    with (
+        mock.patch.object(xpu_collector, "_ping", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_ok", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_run") as run,
+    ):
         run.side_effect = [
-            "foo N/A N/A 12345 python",                          # xpu-smi
-            " ".join(["x"] * 17 + ["100", "y", "82"]),           # xpu-smi -m
-            "12:devices:/docker/abcdef0123456789",               # /proc/<pid>/cgroup
-            "abcdef0 my_container",                               # docker ps
+            "foo N/A N/A 12345 python",  # xpu-smi
+            " ".join(["x"] * 17 + ["100", "y", "82"]),  # xpu-smi -m
+            "12:devices:/docker/abcdef0123456789",  # /proc/<pid>/cgroup
+            "abcdef0 my_container",  # docker ps
         ]
         usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
     assert usage.util == 82.0
@@ -62,9 +69,12 @@ def test_collect_one_busy_resolves_container():
 
 def test_collect_one_timeout_returns_failed():
     from lockbot.core import xpu_collector
-    with mock.patch.object(xpu_collector, "_ping", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_ok", return_value=True), \
-         mock.patch.object(xpu_collector, "_ssh_run", side_effect=subprocess.TimeoutExpired("ssh", 5)):
+
+    with (
+        mock.patch.object(xpu_collector, "_ping", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_ok", return_value=True),
+        mock.patch.object(xpu_collector, "_ssh_run", side_effect=subprocess.TimeoutExpired("ssh", 5)),
+    ):
         assert xpu_collector._collect_one("10.0.0.1", "alice", 5) == xpu_collector._FAILED
 
 
@@ -78,6 +88,7 @@ class _Cfg:
 
 def test_collect_node_usage_maps_keys():
     from lockbot.core import xpu_collector
+
     xpu_collector._cache.clear()
     with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=50.0, container="c")):
         res = xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg())
@@ -86,6 +97,7 @@ def test_collect_node_usage_maps_keys():
 
 def test_collect_node_usage_uses_cache_within_ttl():
     from lockbot.core import xpu_collector
+
     xpu_collector._cache.clear()
     with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=1.0, container="")) as co:
         xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
@@ -95,9 +107,12 @@ def test_collect_node_usage_uses_cache_within_ttl():
 
 def test_collect_node_usage_refetches_after_ttl():
     from lockbot.core import xpu_collector
+
     xpu_collector._cache.clear()
-    with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=1.0, container="")) as co, \
-         mock.patch.object(xpu_collector.time, "time", side_effect=[100.0, 100.0, 1000.0, 1000.0]):
+    with (
+        mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=1.0, container="")) as co,
+        mock.patch.object(xpu_collector.time, "time", side_effect=[100.0, 100.0, 1000.0, 1000.0]),
+    ):
         xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
         xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
     assert co.call_count == 2

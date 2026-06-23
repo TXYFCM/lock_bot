@@ -3,12 +3,12 @@
 import time
 from datetime import datetime
 
-from lockbot.core.i18n import t
 from lockbot.core.device_usage_utils import (
     group_idle_devices,
     group_locked_devices,
     render_device_lines,
 )
+from lockbot.core.i18n import t
 from lockbot.core.usage_render import min_remaining
 from lockbot.core.utils import format_access_mode, format_duration, remaining_duration
 from lockbot.core.xpu_collector import NodeUsage
@@ -80,10 +80,7 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
     for order, (node_key, devs) in enumerate(bot_state.items()):
         rem = min_remaining(devs)
         is_mine = user_id is not None and any(
-            u["user_id"] == user_id
-            for d in devs
-            if d.get("status") != "idle"
-            for u in d.get("current_users", [])
+            u["user_id"] == user_id for d in devs if d.get("status") != "idle" for u in d.get("current_users", [])
         )
         entries.append((node_key, devs, rem, is_mine, order))
 
@@ -116,10 +113,17 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                 else:
                     util_cell = ""
                     container_cell = ""
-                lines.append(_md_row(
-                    node_cell, node_status_cell, dev_cell, user_cell, dur_cell,
-                    util_cell, container_cell,
-                ))
+                lines.append(
+                    _md_row(
+                        node_cell,
+                        node_status_cell,
+                        dev_cell,
+                        user_cell,
+                        dur_cell,
+                        util_cell,
+                        container_cell,
+                    )
+                )
             else:
                 lines.append(_md_row(node_cell, node_status_cell, dev_cell, user_cell, dur_cell))
             first_row = False
@@ -146,9 +150,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
     entries = []
     for order, (node_key, ns) in enumerate(bot_state.items()):
         rem = min_remaining(ns)
-        is_mine = user_id is not None and any(
-            u["user_id"] == user_id for u in ns.get("current_users", [])
-        )
+        is_mine = user_id is not None and any(u["user_id"] == user_id for u in ns.get("current_users", []))
         entries.append((node_key, ns, rem, is_mine, order))
 
     for node_key, ns, _rem, _mine, _order in sorted(entries, key=_node_sort_key):
@@ -173,6 +175,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None):
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
+
 
 def _node_sort_key(entry):
     """Order: my locked nodes first, then idle (FREE), then PARTIAL

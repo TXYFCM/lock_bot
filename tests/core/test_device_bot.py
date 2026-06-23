@@ -136,9 +136,7 @@ def test_query_bare_at_collects_usage(bot, monkeypatch):
         return {}
 
     monkeypatch.setattr(device_bot_mod, "collect_node_usage", fake_collect)
-    monkeypatch.setattr(
-        bot, "_node_ips", lambda: {"test": "10.0.0.1"}
-    )
+    monkeypatch.setattr(bot, "_node_ips", lambda: {"test": "10.0.0.1"})
     bot.query("user1")
     assert "args" in called
 

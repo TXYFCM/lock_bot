@@ -41,16 +41,18 @@ def _parse_util(xpu_m_output: str) -> float | None:
 
 
 _SSH_OPTS = [
-    "-o", "BatchMode=yes",
-    "-o", "StrictHostKeyChecking=no",
-    "-o", "UserKnownHostsFile=/dev/null",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "StrictHostKeyChecking=no",
+    "-o",
+    "UserKnownHostsFile=/dev/null",
 ]
 
 
 def _ping(ip: str) -> bool:
     try:
-        r = subprocess.run(["ping", "-c", "1", "-W", "1", ip],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        r = subprocess.run(["ping", "-c", "1", "-W", "1", ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return r.returncode == 0
     except Exception:
         return False
@@ -60,7 +62,9 @@ def _ssh_ok(ip: str, user: str) -> bool:
     try:
         r = subprocess.run(
             ["ssh", *_SSH_OPTS, "-o", "ConnectTimeout=2", f"{user}@{ip}", "exit"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
         )
         return r.returncode == 0
     except Exception:
@@ -70,7 +74,9 @@ def _ssh_ok(ip: str, user: str) -> bool:
 def _ssh_run(ip: str, user: str, remote_cmd: str, timeout: int) -> str:
     out = subprocess.check_output(
         ["ssh", *_SSH_OPTS, f"{user}@{ip}", remote_cmd],
-        stderr=subprocess.STDOUT, timeout=timeout, encoding="utf-8",
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        encoding="utf-8",
     )
     return out
 
@@ -128,8 +134,7 @@ def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]
             to_fetch[node_key] = ip
     if to_fetch:
         with ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
-            futures = {ex.submit(_collect_one, ip, user, timeout): nk
-                       for nk, ip in to_fetch.items()}
+            futures = {ex.submit(_collect_one, ip, user, timeout): nk for nk, ip in to_fetch.items()}
             for fut, node_key in futures.items():
                 try:
                     usage = fut.result()

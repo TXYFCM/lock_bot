@@ -9,9 +9,7 @@ def _dev(status):
 
 def _device_node(idle_count, total):
     """A DEVICE node state (list) with idle_count idle devices out of total."""
-    return [_dev("idle") for _ in range(idle_count)] + [
-        _dev("exclusive") for _ in range(total - idle_count)
-    ]
+    return [_dev("idle") for _ in range(idle_count)] + [_dev("exclusive") for _ in range(total - idle_count)]
 
 
 def _order(entries):

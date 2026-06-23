@@ -67,8 +67,7 @@ MESSAGES = {
     "query.cluster_usage_title": "ℹ️ Cluster Usage Details\n",
     "query.table_header": "| IP | Node | Card | Locked by | Remaining |\n| --- | --- | --- | --- | --- |\n",
     "query.table_header_xpu": (
-        "| IP | Node | Card | Locked by | Remaining | Util | Container |\n"
-        "| --- | --- | --- | --- | --- | --- | --- |\n"
+        "| IP | Node | Card | Locked by | Remaining | Util | Container |\n| --- | --- | --- | --- | --- | --- | --- |\n"
     ),
     # ── Device usage ──
     "device_usage.hetero_warning": (
