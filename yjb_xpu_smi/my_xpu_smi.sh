@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cmd=$(cat <<'EOF'
-ip=$(hostname -I | awk '{print $1}');
+ip=${XPU_TARGET_IP:-$(hostname -I | awk '{print $1}')};
 output=$(xpu-smi);
 if echo $output | grep -q "No running processes found"; then
     status="\033[0;32mFREE\033[0m";

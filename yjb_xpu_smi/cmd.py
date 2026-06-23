@@ -38,6 +38,11 @@ def ping(ip):
     except Exception:
         return False
 
+def ssh_user_host(ip):
+    user = os.getenv('SSH_USER', '')
+    return f"{user}@{ip}" if user else ip
+
+
 def ssh_check(ip, timeout=2, total_timeout=3):
     try:
         result = subprocess.run(
@@ -47,7 +52,7 @@ def ssh_check(ip, timeout=2, total_timeout=3):
                 "-o", f"ConnectTimeout={timeout}",
                 "-o", "StrictHostKeyChecking=no",
                 "-o", "UserKnownHostsFile=/dev/null",
-                ip,
+                ssh_user_host(ip),
                 "exit"
             ],
             stdout=subprocess.DEVNULL,
@@ -89,7 +94,6 @@ def execute_cmd(args):
 
 def sync_cmd(cmd):
     ips = get_ips()
-    all_cmds = []
     cmd = "{0}".format(concat_cmd(cmd))
 
     # 首先并发检查所有远程 IP 状态
@@ -102,21 +106,25 @@ def sync_cmd(cmd):
             if not ok:
                 print(msg)
             if ok:
-                exe_cmd = concat_cmd(['ssh', ip, cmd])
-                results[ip] = exe_cmd
+                remote_cmd = f"XPU_TARGET_IP={quote(ip)} {cmd}"
+                exe_cmd = concat_cmd(['ssh',
+                    '-o', 'BatchMode=yes',
+                    '-o', 'StrictHostKeyChecking=no',
+                    '-o', 'UserKnownHostsFile=/dev/null',
+                    ssh_user_host(ip), remote_cmd])
+                results[ip] = (ip, exe_cmd)
 
     if not results:
         print(f"{RED}No valid targets to run command.{RESET}")
         return
 
-    all_cmds = list(results.values())
-    num_process = min(len(all_cmds), int(os.getenv('MAX_PROCESS', len(all_cmds))))
+    all_cmds = list(results.values())  # list of (ip, cmd_str) tuples
+    num_process = min(len(all_cmds), int(os.getenv('MAX_PROCESS', str(len(all_cmds)))))
 
-    args = zip(ips, all_cmds)
     with multiprocessing.Pool(num_process) as pool:
-        results = pool.map(execute_cmd, args)
+        outputs = pool.map(execute_cmd, all_cmds)
 
-    for output in results:
+    for output in outputs:
         print(output)
 
 
