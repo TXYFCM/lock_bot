@@ -157,12 +157,17 @@ class DeviceBot(BaseLockBot):
         """
         query current usage
         """
-        with self._lock:
-            if node_key is None:
+        # Collect GPU usage (blocking SSH on cache miss) OUTSIDE the lock so it
+        # does not stall user commands or the scheduler's _check_and_notify, which
+        # contend on the same self._lock. node_ips is read under the lock since it
+        # touches bot_state; the SSH I/O itself runs lock-free.
+        if node_key is None:
+            with self._lock:
                 node_ips = self._node_ips()
-                xpu_usage = collect_node_usage(node_ips, self.config) if node_ips else None
-            else:
-                xpu_usage = None
+            xpu_usage = collect_node_usage(node_ips, self.config) if node_ips else None
+        else:
+            xpu_usage = None
+        with self._lock:
             content = build_device_query(
                 self.state.bot_state,
                 user_id,
