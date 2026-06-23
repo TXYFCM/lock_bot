@@ -107,8 +107,13 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
             node_status_cell = node_state if first_row else ""
             if xpu_usage is not None:
                 if first_row:
-                    usage = xpu_usage.get(node_key, NodeUsage(util=None, container=""))
-                    util_cell = f"{usage.util}%" if usage.util is not None else "N/A"
+                    usage = xpu_usage.get(node_key, NodeUsage(util=None, mem=None, container=""))
+                    if usage.util is None and usage.mem is None:
+                        util_cell = "N/A"
+                    else:
+                        u = f"{usage.util}%" if usage.util is not None else "N/A"
+                        m = f"{usage.mem}%" if usage.mem is not None else "N/A"
+                        util_cell = f"{u}/{m}"
                     container_cell = usage.container or ""
                 else:
                     util_cell = ""

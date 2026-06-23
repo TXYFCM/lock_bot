@@ -26,7 +26,7 @@ def _config():
 
 def test_param_query_is_five_columns():
     out = build_device_query(_state(), None, _config(), node_filter="node1")
-    assert "利用率" not in out
+    assert "XPU%/MEM%" not in out
 
 
 def test_bare_at_is_seven_columns():
@@ -35,10 +35,10 @@ def test_bare_at_is_seven_columns():
         None,
         _config(),
         node_filter="node1",
-        xpu_usage={"node1": NodeUsage(util=82.0, container="my_ctr")},
+        xpu_usage={"node1": NodeUsage(util=82.0, mem=50.0, container="my_ctr")},
     )
-    assert "利用率" in out
-    assert "82.0%" in out
+    assert "XPU%/MEM%" in out
+    assert "82.0%/50.0%" in out
     assert "my_ctr" in out
 
 
@@ -48,7 +48,7 @@ def test_failed_node_shows_na():
         None,
         _config(),
         node_filter="node1",
-        xpu_usage={"node1": NodeUsage(util=None, container="")},
+        xpu_usage={"node1": NodeUsage(util=None, mem=None, container="")},
     )
     assert "N/A" in out
 
@@ -71,8 +71,8 @@ def test_util_only_on_first_row():
         None,
         _config(),
         node_filter="node1",
-        xpu_usage={"node1": NodeUsage(util=10.0, container="c")},
+        xpu_usage={"node1": NodeUsage(util=10.0, mem=20.0, container="c")},
     )
     # Two data rows are rendered; util/container appear only on the first.
-    assert out.count("10.0%") == 1
+    assert out.count("10.0%/20.0%") == 1
     assert out.count("| c |") == 1

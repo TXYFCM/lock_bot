@@ -6,9 +6,9 @@ import time
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 
-NodeUsage = namedtuple("NodeUsage", ["util", "container"])  # util: float|None, container: str
+NodeUsage = namedtuple("NodeUsage", ["util", "mem", "container"])  # util/mem: float|None (%), container: str
 
-_FAILED = NodeUsage(util=None, container="")
+_FAILED = NodeUsage(util=None, mem=None, container="")
 
 # node_key -> (fetched_at_epoch, NodeUsage)
 _cache: dict[str, tuple[float, NodeUsage]] = {}
@@ -38,6 +38,29 @@ def _parse_util(xpu_m_output: str) -> float | None:
     if not utils:
         return None
     return round(sum(utils) / len(utils), 2)
+
+
+def _parse_mem(xpu_m_output: str) -> float | None:
+    """Average memory utilization across cards from `xpu-smi -m`.
+
+    Per card: used MiB (col 18, cols[17]) / total MiB (col 19, cols[18]) * 100.
+    """
+    ratios = []
+    for line in xpu_m_output.splitlines():
+        cols = line.split()
+        if len(cols) < 20:
+            continue
+        try:
+            used = float(cols[17])
+            total = float(cols[18])
+        except ValueError:
+            continue
+        if total <= 0:
+            continue
+        ratios.append(used / total * 100)
+    if not ratios:
+        return None
+    return round(sum(ratios) / len(ratios), 2)
 
 
 _SSH_OPTS = [
@@ -110,9 +133,10 @@ def _collect_one(ip: str, user: str, timeout: int) -> NodeUsage:
     except Exception:
         return _FAILED
     util = _parse_util(smi_m)
+    mem = _parse_mem(smi_m)
     pid = _parse_pid(smi)
     container = _resolve_container(ip, user, pid, timeout) if pid else ""
-    return NodeUsage(util=util, container=container)
+    return NodeUsage(util=util, mem=mem, container=container)
 
 
 def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]:
