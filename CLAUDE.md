@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+> This environment exposes only `python3` on PATH (no `python`). Prefer module form when the console script is unavailable: `python3 -m pytest`, `python3 -m ruff`, `python3 tools/gen_keys.py`.
+
 ```bash
 # Install dev dependencies
 pip install -e ".[dev]"
@@ -74,7 +76,9 @@ python tools/gen_keys.py
 
 **Command routing** (`handler.py`): Parses incoming text → dispatches to bot methods (`lock`, `slock`, `unlock`, `kickout`, `book`, `take`, `query`). Unknown node names default to query. Empty input = query all.
 
-**Query rendering** (`query_render.py`): Builds markdown tables for `/query` output. `build_device_query` for DEVICE bots (device-level rows), `build_node_query` for NODE/QUEUE bots (node-level rows). Sort order: my nodes → idle (FREE) → PARTIAL → BUSY, within each tier by remaining duration ascending.
+**Query rendering** (`query_render.py`): Builds markdown tables for `/query` output. `build_device_query` for DEVICE bots (device-level rows), `build_node_query` for NODE/QUEUE bots (node-level rows). Sort order: my nodes → idle (FREE) → PARTIAL → BUSY, within each tier by remaining duration ascending. When `build_device_query` is passed an `xpu_usage` map it renders a 7-column table (adds GPU 利用率 + container name, shown only on each node's first row); otherwise 5 columns.
+
+**GPU usage collection** (`xpu_collector.py`): `collect_node_usage(node_ips, config)` SSHes into nodes running `xpu-smi` / `xpu-smi -m` to compute node-average GPU utilization and resolve the occupying Docker container name (`/proc/<pid>/cgroup` → `docker ps`). Returns `NodeUsage(util, container)` namedtuples, with per-node TTL caching (`XPU_USAGE_TTL`) and `ThreadPoolExecutor` concurrency; any failure degrades to `NodeUsage(None, "")`. Invoked by `DeviceBot.query` only on the bare-AT path (no node argument), with SSH performed outside the bot lock.
 
 **Usage rendering** (`usage_render.py`): Configurable line templating via `USAGE_LINE_TEMPLATE` / `USAGE_IDLE_TEMPLATE`, with `USAGE_SORT` (name/dur_asc/dur_desc) and `USAGE_GROUP` (none/idle_first/idle_last). `render_line()` gracefully falls back to a default template on format errors.
 
