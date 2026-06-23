@@ -66,3 +66,38 @@ def test_collect_one_timeout_returns_failed():
          mock.patch.object(xpu_collector, "_ssh_ok", return_value=True), \
          mock.patch.object(xpu_collector, "_ssh_run", side_effect=subprocess.TimeoutExpired("ssh", 5)):
         assert xpu_collector._collect_one("10.0.0.1", "alice", 5) == xpu_collector._FAILED
+
+
+class _Cfg:
+    def __init__(self, ttl=60, user="alice", timeout=5):
+        self._d = {"XPU_USAGE_TTL": ttl, "SSH_USER": user, "SSH_CMD_TIMEOUT": timeout}
+
+    def get_val(self, k, default=None):
+        return self._d.get(k, default)
+
+
+def test_collect_node_usage_maps_keys():
+    from lockbot.core import xpu_collector
+    xpu_collector._cache.clear()
+    with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=50.0, container="c")):
+        res = xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg())
+    assert res["node1"] == NodeUsage(util=50.0, container="c")
+
+
+def test_collect_node_usage_uses_cache_within_ttl():
+    from lockbot.core import xpu_collector
+    xpu_collector._cache.clear()
+    with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=1.0, container="")) as co:
+        xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
+        xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
+    assert co.call_count == 1
+
+
+def test_collect_node_usage_refetches_after_ttl():
+    from lockbot.core import xpu_collector
+    xpu_collector._cache.clear()
+    with mock.patch.object(xpu_collector, "_collect_one", return_value=NodeUsage(util=1.0, container="")) as co, \
+         mock.patch.object(xpu_collector.time, "time", side_effect=[100.0, 100.0, 1000.0, 1000.0]):
+        xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
+        xpu_collector.collect_node_usage({"node1": "10.0.0.1"}, _Cfg(ttl=60))
+    assert co.call_count == 2

@@ -107,3 +107,34 @@ def _collect_one(ip: str, user: str, timeout: int) -> NodeUsage:
     pid = _parse_pid(smi)
     container = _resolve_container(ip, user, pid, timeout) if pid else ""
     return NodeUsage(util=util, container=container)
+
+
+def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]:
+    """Collect {node_key: NodeUsage} for the given node->ip map, with TTL caching.
+
+    Failures (unreachable/timeout/parse error) degrade to NodeUsage(None, "").
+    """
+    ttl = config.get_val("XPU_USAGE_TTL", 60)
+    user = config.get_val("SSH_USER", "v_qiujie04")
+    timeout = config.get_val("SSH_CMD_TIMEOUT", 15)
+    now = time.time()
+    result: dict[str, NodeUsage] = {}
+    to_fetch: dict[str, str] = {}
+    for node_key, ip in node_ips.items():
+        cached = _cache.get(node_key)
+        if cached and now - cached[0] < ttl:
+            result[node_key] = cached[1]
+        else:
+            to_fetch[node_key] = ip
+    if to_fetch:
+        with ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
+            futures = {ex.submit(_collect_one, ip, user, timeout): nk
+                       for nk, ip in to_fetch.items()}
+            for fut, node_key in futures.items():
+                try:
+                    usage = fut.result()
+                except Exception:
+                    usage = _FAILED
+                _cache[node_key] = (time.time(), usage)
+                result[node_key] = usage
+    return result
