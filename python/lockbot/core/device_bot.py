@@ -10,7 +10,8 @@ from lockbot.core.device_usage_alert import (
 )
 from lockbot.core.device_usage_utils import get_current_usage
 from lockbot.core.i18n import t
-from lockbot.core.query_render import build_device_query
+from lockbot.core.query_render import _get_ip, build_device_query
+from lockbot.core.xpu_collector import collect_node_usage
 from lockbot.core.io import (
     create_or_load_device_state,
     log_to_file,
@@ -157,8 +158,28 @@ class DeviceBot(BaseLockBot):
         query current usage
         """
         with self._lock:
-            content = build_device_query(self.state.bot_state, user_id, self.config, node_filter=node_key)
+            if node_key is None:
+                node_ips = self._node_ips()
+                xpu_usage = collect_node_usage(node_ips, self.config) if node_ips else None
+            else:
+                xpu_usage = None
+            content = build_device_query(
+                self.state.bot_state,
+                user_id,
+                self.config,
+                node_filter=node_key,
+                xpu_usage=xpu_usage,
+            )
             return self.adapter.build_reply(content, [user_id], markdown=True)
+
+    def _node_ips(self):
+        cluster_configs = self.config.get_val("CLUSTER_CONFIGS") or {}
+        result = {}
+        for node_key in self.state.bot_state:
+            ip = _get_ip(cluster_configs, node_key)
+            if ip:
+                result[node_key] = ip
+        return result
 
     def lock(self, user_id, command):
         """
