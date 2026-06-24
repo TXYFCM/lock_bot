@@ -140,7 +140,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
         lines.append(tip + "\n")
 
     xpu_on = memory_based and xpu_usage is not None
-    header_key = "query.table_header_xpu" if xpu_on else "query.table_header"
+    header_key = "query.table_header_node_xpu" if xpu_on else "query.table_header_node"
     lines.append(t(header_key, config=config))
     cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
     threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
@@ -160,7 +160,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
         node_label = _node_label(cluster_configs, node_key)
         usage = xpu_usage.get(node_key) if xpu_on else None
         if ns["status"] == "idle":
-            cells = [node_label, status_badge, "--", idle_lock_cell, "--"]
+            cells = [node_label, status_badge, idle_lock_cell, "--"]
             lines.append(_md_row(*_with_xpu(cells, usage, first_row=True, xpu_on=xpu_on)))
         else:
             first_row = True
@@ -172,7 +172,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
                 user_cell = f"{user_info['user_id']}（{mode_str}）"
                 node_cell = node_label if first_row else ""
                 node_st_cell = status_badge if first_row else ""
-                cells = [node_cell, node_st_cell, "--", user_cell, dur_str or "--"]
+                cells = [node_cell, node_st_cell, user_cell, dur_str or "--"]
                 lines.append(_md_row(*_with_xpu(cells, usage, first_row=first_row, xpu_on=xpu_on)))
                 first_row = False
 
