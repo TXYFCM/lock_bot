@@ -67,6 +67,47 @@ def test_query(bot):
     assert "test" in result["message"]["body"][0]["content"], "query info missing node name"
 
 
+def test_query_collects_usage(bot, monkeypatch):
+    """NODE query collects GPU memory via SSH (node_filter passed through)."""
+    import lockbot.core.node_bot as node_bot_mod
+
+    bot.config.set_val("CLUSTER_CONFIGS", {"test": "10.0.0.1"})
+    called = {}
+
+    def fake_collect(node_ips, config):
+        called["node_ips"] = node_ips
+        return {}
+
+    monkeypatch.setattr(node_bot_mod, "collect_node_usage", fake_collect)
+    bot.query("user1")
+    assert called.get("node_ips") == {"test": "10.0.0.1"}
+
+
+def test_query_single_node_collects_usage(bot, monkeypatch):
+    """Single-node NODE query collects only that node's memory."""
+    import lockbot.core.node_bot as node_bot_mod
+
+    bot.config.set_val("CLUSTER_CONFIGS", {"test": "10.0.0.1", "test2": "10.0.0.2"})
+    bot.state.bot_state["test2"] = {"status": "idle", "current_users": [], "booking_list": []}
+    called = {}
+
+    def fake_collect(node_ips, config):
+        called["node_ips"] = node_ips
+        return {}
+
+    monkeypatch.setattr(node_bot_mod, "collect_node_usage", fake_collect)
+    bot.query("user1", node_key="test2")
+    assert called.get("node_ips") == {"test2": "10.0.0.2"}
+
+
+def test_node_ips(bot):
+    """_node_ips returns {node_key: ip} and honors node_filter."""
+    bot.config.set_val("CLUSTER_CONFIGS", {"test": "10.0.0.1", "test2": "10.0.0.2"})
+    bot.state.bot_state["test2"] = {"status": "idle", "current_users": [], "booking_list": []}
+    assert bot._node_ips() == {"test": "10.0.0.1", "test2": "10.0.0.2"}
+    assert bot._node_ips(node_filter="test") == {"test": "10.0.0.1"}
+
+
 def test_lock_unlock(bot):
     """Test lock unlock."""
     reply = bot.lock("user1", "lock test 1h")

@@ -13,7 +13,7 @@ from lockbot.core.io import (
     log_to_file,
     save_bot_state_to_file,
 )
-from lockbot.core.query_render import build_node_query
+from lockbot.core.query_render import _get_ip, build_node_query
 from lockbot.core.usage_render import (
     DEFAULT_IDLE_TEMPLATE,
     DEFAULT_LINE_TEMPLATE,
@@ -30,6 +30,7 @@ from lockbot.core.utils import (
     remaining_duration,
     remove_user_info,
 )
+from lockbot.core.xpu_collector import collect_node_usage
 
 # Regex building blocks for command parsing
 _NODE_LIST = r"([\w\d]+)(\s*[,，]\s*[\w\d]+)*"  # node1,node2,...
@@ -43,6 +44,10 @@ class NodeBot(BaseLockBot):
 
     class _state_class(BotState):
         _loader = staticmethod(create_or_load_node_state)
+
+    # Whether /query collects per-node GPU memory via SSH to drive the
+    # memory-based status badge + 7-column table. QueueBot opts out.
+    _collect_xpu_on_query = True
 
     def supported_commands(self):
         return ["lock", "slock", "unlock", "free", "kickout", "help", "h", "query"]
@@ -106,9 +111,37 @@ class NodeBot(BaseLockBot):
         """
         Query usage of a node
         """
+        # Collect GPU memory (blocking SSH on cache miss) OUTSIDE the lock so it
+        # does not stall user commands or the scheduler's _check_and_notify, which
+        # contend on the same self._lock. node_ips is read under the lock since it
+        # touches bot_state; the SSH I/O itself runs lock-free. QueueBot disables
+        # this via _collect_xpu_on_query.
+        xpu_usage = None
+        if self._collect_xpu_on_query:
+            with self._lock:
+                node_ips = self._node_ips(node_filter=node_key)
+            xpu_usage = collect_node_usage(node_ips, self.config) if node_ips else None
         with self._lock:
-            content = build_node_query(self.state.bot_state, user_id, self.config, node_filter=node_key)
+            content = build_node_query(
+                self.state.bot_state,
+                user_id,
+                self.config,
+                node_filter=node_key,
+                xpu_usage=xpu_usage,
+                memory_based=self._collect_xpu_on_query,
+            )
             return self.adapter.build_reply(content, [user_id], markdown=True)
+
+    def _node_ips(self, node_filter=None):
+        cluster_configs = self.config.get_val("CLUSTER_CONFIGS") or {}
+        result = {}
+        for node_key in self.state.bot_state:
+            if node_filter is not None and node_key != node_filter:
+                continue
+            ip = _get_ip(cluster_configs, node_key)
+            if ip:
+                result[node_key] = ip
+        return result
 
     def lock(self, user_id, command):
         """

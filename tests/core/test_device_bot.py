@@ -136,24 +136,25 @@ def test_query_bare_at_collects_usage(bot, monkeypatch):
         return {}
 
     monkeypatch.setattr(device_bot_mod, "collect_node_usage", fake_collect)
-    monkeypatch.setattr(bot, "_node_ips", lambda: {"test": "10.0.0.1"})
+    monkeypatch.setattr(bot, "_node_ips", lambda node_filter=None: {"test": "10.0.0.1"})
     bot.query("user1")
     assert "args" in called
 
 
-def test_query_with_node_key_skips_usage(bot, monkeypatch):
-    """Param query (node_key given) does not collect GPU usage."""
+def test_query_with_node_key_also_collects_usage(bot, monkeypatch):
+    """Single-node query (node_key given) also collects GPU usage, filtered to that node."""
     import lockbot.core.device_bot as device_bot_mod
 
-    called = {"count": 0}
+    called = {}
 
     def fake_collect(node_ips, config):
-        called["count"] += 1
+        called["node_ips"] = node_ips
         return {}
 
     monkeypatch.setattr(device_bot_mod, "collect_node_usage", fake_collect)
+    bot.config.set_val("CLUSTER_CONFIGS", {"test": {"ip": "10.0.0.1", "devices": ["a800"]}})
     bot.query("user1", node_key="test")
-    assert called["count"] == 0
+    assert called.get("node_ips") == {"test": "10.0.0.1"}
 
 
 def test_node_ips_returns_valid_ips(bot):
@@ -164,6 +165,22 @@ def test_node_ips_returns_valid_ips(bot):
     )
     bot.state.bot_state = {"node1": [{"dev_id": 0, "status": "idle", "current_users": []}]}
     assert bot._node_ips() == {"node1": "10.0.0.1"}
+
+
+def test_node_ips_node_filter(bot):
+    """_node_ips(node_filter=...) restricts collection to a single node."""
+    bot.config.set_val(
+        "CLUSTER_CONFIGS",
+        {
+            "node1": {"ip": "10.0.0.1", "devices": ["A100"]},
+            "node2": {"ip": "10.0.0.2", "devices": ["A100"]},
+        },
+    )
+    bot.state.bot_state = {
+        "node1": [{"dev_id": 0, "status": "idle", "current_users": []}],
+        "node2": [{"dev_id": 0, "status": "idle", "current_users": []}],
+    }
+    assert bot._node_ips(node_filter="node2") == {"node2": "10.0.0.2"}
 
 
 def test_lock_unlock(bot):

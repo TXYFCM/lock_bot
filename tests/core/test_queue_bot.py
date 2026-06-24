@@ -67,6 +67,23 @@ def test_query(bot):
     assert "test" in result["message"]["body"][0]["content"], "Missing node name in query info"
 
 
+def test_query_does_not_collect_usage(bot, monkeypatch):
+    """QUEUE keeps legacy lock-based query: it must NOT SSH-collect GPU memory."""
+    import lockbot.core.node_bot as node_bot_mod
+
+    bot.config.set_val("CLUSTER_CONFIGS", {"test": "10.0.0.1"})
+    called = {"count": 0}
+
+    def fake_collect(node_ips, config):
+        called["count"] += 1
+        return {}
+
+    monkeypatch.setattr(node_bot_mod, "collect_node_usage", fake_collect)
+    out = bot.query("user1")["message"]["body"][0]["content"]
+    assert called["count"] == 0
+    assert "XPU%/MEM%" not in out  # legacy 5-column table
+
+
 def test_lock_unlock(bot):
     """Test lock unlock."""
     reply = bot.lock("user1", "lock test 1h")

@@ -114,6 +114,11 @@ _CONFIG_SCHEMA = {
         "description": "TTL in seconds for cached GPU utilization/container results",
         "env": True,
     },
+    "MEM_BUSY_THRESHOLD": {
+        "default": 10,
+        "description": "GPU memory utilization %% above which a node/device is shown BUSY",
+        "env": True,
+    },
 }
 
 # ── Internal constants (not configurable via file/env) ─────────────────

@@ -32,6 +32,10 @@ class QueueBot(NodeBot):
     QueueBot class
     """
 
+    # QUEUE keeps the original lock-based query rendering: no GPU memory
+    # collection, status/sort unchanged from NODE's pre-memory behavior.
+    _collect_xpu_on_query = False
+
     def supported_commands(self):
         return ["lock", "unlock", "free", "kickout", "kicklock", "help", "h", "book", "take", "query"]
 

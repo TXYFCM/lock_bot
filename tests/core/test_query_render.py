@@ -1,60 +1,91 @@
-"""Tests for query_render node ordering."""
+"""Tests for query_render node ordering (memory-based status + lock-aware sort)."""
 
-from lockbot.core.query_render import _is_device_partial, _node_sort_key
-
-
-def _dev(status):
-    return {"dev_id": 0, "status": status, "dev_model": "a800", "current_users": []}
+from lockbot.core.query_render import _mem_category, _node_sort_key
 
 
-def _device_node(idle_count, total):
-    """A DEVICE node state (list) with idle_count idle devices out of total."""
-    return [_dev("idle") for _ in range(idle_count)] + [_dev("exclusive") for _ in range(total - idle_count)]
+def _entry(key, rem, is_mine, cat, order):
+    # entry = (key, state, rem, is_mine, cat, order); state is unused by the sort.
+    return (key, None, rem, is_mine, cat, order)
 
 
 def _order(entries):
     return [e[0] for e in sorted(entries, key=_node_sort_key)]
 
 
-def test_partial_sorts_above_busy():
-    """FREE -> PARTIAL -> BUSY (busy tier ordered by remaining asc)."""
+def test_mem_category():
+    assert _mem_category(None, 10) == "na"
+    assert _mem_category(5, 10) == "free"
+    assert _mem_category(10, 10) == "free"  # boundary: not > threshold
+    assert _mem_category(10.1, 10) == "busy"
+    assert _mem_category(80, 10) == "busy"
+
+
+def test_unlocked_before_locked():
+    """Primary key: no-lock (rem is None) sorts before locked, regardless of mem tier."""
     entries = [
-        # (key, state, rem, is_mine, order)
-        ("busy_8m", _device_node(0, 8), 8 * 60, False, 0),
-        ("busy_44m", _device_node(0, 8), 44 * 60, False, 1),
-        ("partial", _device_node(5, 8), 50 * 60, False, 2),
-        ("free", _device_node(8, 8), None, False, 3),
+        # (key, rem, is_mine, cat, order)
+        _entry("locked_free", 100, False, "free", 0),
+        _entry("unlocked_busy", None, False, "busy", 1),
     ]
-    assert _order(entries) == ["free", "partial", "busy_8m", "busy_44m"]
+    # unlocked+busy (rank 3) still beats locked+free (rank 4)
+    assert _order(entries) == ["unlocked_busy", "locked_free"]
 
 
-def test_mine_first_then_free_partial_busy():
-    """is_mine outranks everything, including a FREE node."""
+def test_mem_tier_within_lock_group():
+    """Within the unlocked group: FREE < N/A < BUSY."""
     entries = [
-        ("free", _device_node(8, 8), None, False, 0),
-        ("partial", _device_node(3, 8), 50 * 60, False, 1),
-        ("busy", _device_node(0, 8), 8 * 60, False, 2),
-        ("mine", _device_node(0, 8), 99 * 60, True, 3),
+        _entry("u_busy", None, False, "busy", 0),
+        _entry("u_na", None, False, "na", 1),
+        _entry("u_free", None, False, "free", 2),
     ]
-    assert _order(entries) == ["mine", "free", "partial", "busy"]
+    assert _order(entries) == ["u_free", "u_na", "u_busy"]
 
 
-def test_node_dict_state_never_partial():
-    """NODE/QUEUE state is a dict; it must never be classified PARTIAL."""
-    busy = {"status": "exclusive", "current_users": []}
-    idle = {"status": "idle", "current_users": []}
-    assert _is_device_partial(busy) is False
-    assert _is_device_partial(idle) is False
-
-    # A busy NODE node lands in the BUSY tier (rank 3), idle lands in FREE (rank 1).
+def test_mem_tier_within_locked_group():
+    """Within the locked group: FREE < N/A < BUSY (ranks 4/5/6)."""
     entries = [
-        ("busy", busy, 10 * 60, False, 0),
-        ("idle", idle, None, False, 1),
+        _entry("l_busy", 100, False, "busy", 0),
+        _entry("l_na", 100, False, "na", 1),
+        _entry("l_free", 100, False, "free", 2),
     ]
-    assert _order(entries) == ["idle", "busy"]
+    assert _order(entries) == ["l_free", "l_na", "l_busy"]
 
 
-def test_is_device_partial():
-    assert _is_device_partial(_device_node(3, 8)) is True  # mixed
-    assert _is_device_partial(_device_node(0, 8)) is False  # all busy
-    assert _is_device_partial(_device_node(8, 8)) is False  # all idle
+def test_mine_first():
+    """is_mine outranks everything, even an unlocked+FREE node."""
+    entries = [
+        _entry("unlocked_free", None, False, "free", 0),
+        _entry("mine", 100, True, "busy", 1),
+    ]
+    assert _order(entries) == ["mine", "unlocked_free"]
+
+
+def test_full_seven_rank_order():
+    """Full ordering across all seven ranks."""
+    entries = [
+        _entry("locked_busy", 100, False, "busy", 0),  # rank 6
+        _entry("locked_na", 100, False, "na", 1),  # rank 5
+        _entry("locked_free", 100, False, "free", 2),  # rank 4
+        _entry("unlocked_busy", None, False, "busy", 3),  # rank 3
+        _entry("unlocked_na", None, False, "na", 4),  # rank 2
+        _entry("unlocked_free", None, False, "free", 5),  # rank 1
+        _entry("mine", 100, True, "busy", 6),  # rank 0
+    ]
+    assert _order(entries) == [
+        "mine",
+        "unlocked_free",
+        "unlocked_na",
+        "unlocked_busy",
+        "locked_free",
+        "locked_na",
+        "locked_busy",
+    ]
+
+
+def test_intra_rank_by_remaining_then_order():
+    """Same rank: sort by remaining duration ascending, then insertion order."""
+    entries = [
+        _entry("l_44m", 44 * 60, False, "free", 0),
+        _entry("l_8m", 8 * 60, False, "free", 1),
+    ]
+    assert _order(entries) == ["l_8m", "l_44m"]
