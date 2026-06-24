@@ -40,6 +40,32 @@ docker build -f docker/Dockerfile -t lockbot .
 python tools/gen_keys.py
 ```
 
+## Local tmux deployment (restart after code changes)
+
+The running instance lives in a tmux session named `lockbot`, where `uvicorn` (port **8875**, no `--reload`) is the session's **only foreground process**. Code changes require a manual restart.
+
+> **Gotcha:** `tmux send-keys -t lockbot C-c` kills uvicorn, and since it's the session's only process, the **session (and tmux server) dies with it**. Don't rely on Ctrl-C to leave a usable prompt behind. The reliable flow is kill-and-recreate.
+
+```bash
+# 1. Discover the exact startup command + env vars currently in use
+ps aux | grep '[u]vicorn'
+
+# 2. Kill the old session (no-op if already dead)
+tmux kill-session -t lockbot 2>/dev/null
+
+# 3. Recreate it with the SAME env vars + command (substitute real secrets from step 1)
+tmux new-session -d -s lockbot 'export PATH="$HOME/.local/bin:$PATH" \
+  && export JWT_SECRET="<...>" && export ENCRYPTION_KEY="<...>" \
+  && export DEV_MODE="true" && export DATA_DIR="/tmp/lockbot_data" \
+  && export PYTHONPATH="/home/users/v_qiujie04/lock_bot/python" \
+  && uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8875 2>&1 | tee /tmp/jieLockBot.log'
+
+# 4. Verify startup (look for "Application startup complete." and "Auto-recovered bot")
+sleep 4 && tmux capture-pane -t lockbot -p | tail -20
+```
+
+Logs also tail to `/tmp/jieLockBot.log`. The secrets (`JWT_SECRET`, `ENCRYPTION_KEY`) are runtime-only env vars — always copy them from the live process in step 1 rather than hardcoding.
+
 ## Architecture
 
 **Two deployment modes share the same `python/lockbot/core/` library:**
