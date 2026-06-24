@@ -196,7 +196,7 @@ class NodeBot(BaseLockBot):
                 user_info["is_notified"] = False
                 node["current_users"] = [user_info]
 
-            reply = self.adapter.build_reply(self._msg_with_usage("success.resource_locked"), [user_id])
+            reply = self.adapter.build_reply(self._msg_with_usage("success.resource_locked", node_key=node_keys), [user_id])
             log_to_file(user_id, "lock", node_keys, duration, config=self.config)
             self._save_and_notify()
             return reply
@@ -244,7 +244,7 @@ class NodeBot(BaseLockBot):
                     user_info["duration"] += duration
                     user_info["is_notified"] = False
 
-            reply = self.adapter.build_reply(self._msg_with_usage("success.resource_locked"), [user_id])
+            reply = self.adapter.build_reply(self._msg_with_usage("success.resource_locked", node_key=node_keys), [user_id])
             log_to_file(user_id, "slock", node_keys, duration, config=self.config)
             self._save_and_notify()
             return reply
@@ -286,7 +286,7 @@ class NodeBot(BaseLockBot):
                 if len(node["current_users"]) == 0:
                     node["status"] = "idle"
             reply = self.adapter.build_reply(
-                self._msg_with_usage("success.resource_released"),
+                self._msg_with_usage("success.resource_released", node_key=node_keys),
                 [user_id],
             )
             log_to_file(user_id, "unlock", node_keys, config=self.config)
@@ -305,7 +305,7 @@ class NodeBot(BaseLockBot):
             nodes = [self.state.bot_state[node_key] for node_key in node_keys]
             users = set([user_id])
             content = t("success.resource_force_released", config=self.config, user_id=user_id)
-            content += self._msg_with_usage("label.before_release")
+            content += self._msg_with_usage("label.before_release", node_key=node_keys)
             for node in nodes:
                 for user_info in node["current_users"]:
                     users.add(user_info["user_id"])
@@ -314,7 +314,7 @@ class NodeBot(BaseLockBot):
                 node["status"] = "idle"
                 node["current_users"] = []
                 node["booking_list"] = []
-            content += self._msg_with_usage("label.after_release")
+            content += self._msg_with_usage("label.after_release", node_key=node_keys)
             reply = self.adapter.build_reply(content, list(users))
             log_to_file(user_id, "kickout", node_keys, config=self.config)
             self._save_and_notify()
@@ -453,7 +453,11 @@ class NodeBot(BaseLockBot):
         entries = []
         order = 0
         for node_key, node_status in self.state.bot_state.items():
-            if node_filter is not None and node_key != node_filter:
+            if not (
+                node_filter is None
+                or node_key == node_filter
+                or (isinstance(node_filter, list) and node_key in node_filter)
+            ):
                 continue
             rem = min_remaining(node_status)
             rows = []
