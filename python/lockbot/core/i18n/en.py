@@ -70,9 +70,9 @@ MESSAGES = {
         "| IP | Node | Card | Locked by | Remaining | XPU%/MEM% | Container |\n"
         "| --- | --- | --- | --- | --- | --- | --- |\n"
     ),
-    "query.table_header_node": "| IP | Node | Locked by | Remaining |\n| --- | --- | --- | --- |\n",
+    "query.table_header_node": "| IP | Locked by | Node | Remaining |\n| --- | --- | --- | --- |\n",
     "query.table_header_node_xpu": (
-        "| IP | Node | Locked by | Remaining | XPU%/MEM% | Container |\n"
+        "| IP | Locked by | Node | Remaining | XPU%/MEM% | Container |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
     ),
     # ── Device usage ──

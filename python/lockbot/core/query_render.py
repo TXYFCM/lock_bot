@@ -21,6 +21,8 @@ _STATUS_BUSY = '<font color="red">BUSY</font>'
 _STATUS_NA = '<font color="gray">N/A</font>'
 # lock同学 column when nobody holds a lock (decoupled from the status badge).
 _UNLOCK = '<font color="green">UNLOCK</font>'
+# NODE bot: lock同学 column when nobody holds a lock.
+_NODE_UNLOCK = '<font color="green">null</font>'
 
 
 def _get_ip(cluster_configs, node_key) -> str:
@@ -154,13 +156,13 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
             cat = "free" if ns["status"] == "idle" else "busy"
         entries.append((node_key, ns, rem, is_mine, cat, order))
 
-    idle_lock_cell = _UNLOCK if memory_based else "--"
+    idle_lock_cell = _NODE_UNLOCK if memory_based else "--"
     for node_key, ns, _rem, _mine, cat, _order in sorted(entries, key=_node_sort_key):
         status_badge = _STATUS_BADGE[cat]
         node_label = _node_label(cluster_configs, node_key)
         usage = xpu_usage.get(node_key) if xpu_on else None
         if ns["status"] == "idle":
-            cells = [node_label, status_badge, idle_lock_cell, "--"]
+            cells = [node_label, idle_lock_cell, status_badge, "--"]
             lines.append(_md_row(*_with_xpu(cells, usage, first_row=True, xpu_on=xpu_on)))
         else:
             first_row = True
@@ -172,7 +174,7 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
                 user_cell = f"{user_info['user_id']}（{mode_str}）"
                 node_cell = node_label if first_row else ""
                 node_st_cell = status_badge if first_row else ""
-                cells = [node_cell, node_st_cell, user_cell, dur_str or "--"]
+                cells = [node_cell, user_cell, node_st_cell, dur_str or "--"]
                 lines.append(_md_row(*_with_xpu(cells, usage, first_row=first_row, xpu_on=xpu_on)))
                 first_row = False
 

@@ -28,11 +28,11 @@ def _config():
 
 
 def test_node_memory_based_unlock_and_na():
-    """memory_based with no xpu_usage: idle row shows UNLOCK, status N/A (5 cols)."""
+    """memory_based with no xpu_usage: idle row shows null, status N/A (4 cols)."""
     out = build_node_query(_state(), None, _config(), memory_based=True, xpu_usage=None)
-    assert "UNLOCK" in out  # idle node lock column
+    assert "null" in out  # idle node lock column (green null)
     assert "N/A" in out  # no memory collected -> N/A badge
-    assert "XPU%/MEM%" not in out  # xpu_usage is None -> 5 columns
+    assert "XPU%/MEM%" not in out  # xpu_usage is None -> 4 columns
 
 
 def test_node_memory_based_seven_columns_and_status():
@@ -47,8 +47,8 @@ def test_node_memory_based_seven_columns_and_status():
     assert "90.0%/80.0%" in out
     assert "ctr2" in out
     assert "FREE" in out and "BUSY" in out
-    # idle n1 still shows UNLOCK even though decoupled status is FREE
-    assert "UNLOCK" in out
+    # idle n1 still shows null even though decoupled status is FREE
+    assert "null" in out
 
 
 def test_node_status_decoupled_from_lock():
@@ -80,15 +80,15 @@ def test_node_status_decoupled_from_lock():
     locked_row = next(r for r in data_rows if "10.0.0.1" in r)
     idle_row = next(r for r in data_rows if "10.0.0.2" in r)
     assert "FREE" in locked_row  # locked but low mem
-    assert "u1" in locked_row  # still shows lock holder, not UNLOCK
+    assert "u1" in locked_row  # still shows lock holder, not null
     assert "BUSY" in idle_row  # idle but high mem
-    assert "UNLOCK" in idle_row  # decoupled lock column
+    assert "null" in idle_row  # decoupled lock column
 
 
 def test_queue_legacy_mode_lock_based():
-    """memory_based=False (QUEUE): idle->FREE, locked->BUSY, lock column '--', 5 cols."""
+    """memory_based=False (QUEUE): idle->FREE, locked->BUSY, lock column '--', 4 cols."""
     out = build_node_query(_state(), None, _config(), memory_based=False, xpu_usage=None)
     assert "FREE" in out  # idle node
     assert "BUSY" in out  # locked node
-    assert "UNLOCK" not in out  # legacy uses '--' placeholder
+    assert "null" not in out  # legacy uses '--' placeholder
     assert "XPU%/MEM%" not in out
