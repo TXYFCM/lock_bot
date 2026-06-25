@@ -249,9 +249,10 @@ class QueueBot(NodeBot):
             users = set([user_id])
             content = t("success.kicklock_cleared", config=self.config, user_id=user_id)
             content += self._msg_with_usage("label.before_release")
-            for node in nodes:
+            for node_key, node in zip(node_keys, nodes):
                 for user_info in node["current_users"]:
                     users.add(user_info["user_id"])
+                    self._record_occupancy_end(node_key, user_info, node["status"])
                 node["status"] = "idle"
                 node["current_users"] = []
             content += self._msg_with_usage("label.after_release")
@@ -367,13 +368,14 @@ class QueueBot(NodeBot):
                     for user_info in node["current_users"]:
                         remaining_time = remaining_duration(user_info["start_time"], user_info["duration"])
                         if remaining_time <= 0:
+                            self._record_occupancy_end(node_key, user_info, node["status"])
                             removed_users_id.append(user_info["user_id"])
                             state_changed = True
 
                             # Send expiry notification only if early warning was never sent.
                             # When EARLY_NOTIFY=True and warning fired on time, is_notified=True → silent release.
                             # When EARLY_NOTIFY=False, is_notified is always False → always notify here.
-                            # Fallback: EARLY_NOTIFY=True but scheduler delayed past expiry → notify here instead.
+                            # Fallback: EARLY_NOTIFY=True但 scheduler delayed past expiry → notify here instead.
                             if not user_info["is_notified"]:
                                 trigger_time_alert = True
                                 user_ids.add(user_info["user_id"])

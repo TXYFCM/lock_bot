@@ -1053,6 +1053,31 @@ def get_bot_logs(
     return entries[offset : offset + limit]
 
 
+# ── Occupancy history endpoint ────────────────────────────────
+
+
+@router.get("/{bot_id}/occupancy")
+def get_bot_occupancy(
+    bot_id: int,
+    date: str | None = None,
+    node: str | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Query occupancy history for a bot.
+
+    - ``date``: YYYY-MM-DD (defaults to today)
+    - ``node``: filter by node_key
+
+    Returns a list of records with node_key, user_id, lock_mode, start_time,
+    end_time, and duration_seconds.
+    """
+    from lockbot.backend.app.bots.occupancy import query_occupancy
+
+    _get_user_bot(bot_id, user, db)
+    return query_occupancy(bot_id, date_str=date, node_key=node)
+
+
 # ── Webhook endpoint ────────────────────────────────────────
 
 

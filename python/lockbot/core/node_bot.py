@@ -255,9 +255,12 @@ class NodeBot(BaseLockBot):
         """
         if re.match(r"^\s*(unlock|free)\s*$", command):
             with self._lock:
-                for _, node in self.state.bot_state.items():
+                for node_key, node in self.state.bot_state.items():
                     remove_user_info(node["booking_list"], user_id)
                     if node["status"] != "idle":
+                        for ui in node["current_users"]:
+                            if ui["user_id"] == user_id:
+                                self._record_occupancy_end(node_key, ui, node["status"])
                         remove_user_info(node["current_users"], user_id)
                         if len(node["current_users"]) == 0:
                             node["status"] = "idle"
@@ -280,7 +283,10 @@ class NodeBot(BaseLockBot):
                 for node in nodes
             ):
                 return self.show_error(user_id, self._msg_with_usage("error.node_not_requested"))
-            for node in nodes:
+            for node_key, node in zip(node_keys, nodes):
+                for ui in node["current_users"]:
+                    if ui["user_id"] == user_id:
+                        self._record_occupancy_end(node_key, ui, node["status"])
                 remove_user_info(node["current_users"], user_id)
                 remove_user_info(node["booking_list"], user_id)
                 if len(node["current_users"]) == 0:
@@ -306,9 +312,10 @@ class NodeBot(BaseLockBot):
             users = set([user_id])
             content = t("success.resource_force_released", config=self.config, user_id=user_id)
             content += self._msg_with_usage("label.before_release", node_key=node_keys)
-            for node in nodes:
+            for node_key, node in zip(node_keys, nodes):
                 for user_info in node["current_users"]:
                     users.add(user_info["user_id"])
+                    self._record_occupancy_end(node_key, user_info, node["status"])
                 for user_info in node["booking_list"]:
                     users.add(user_info["user_id"])
                 node["status"] = "idle"
@@ -375,6 +382,7 @@ class NodeBot(BaseLockBot):
                     for user_info in node["current_users"]:
                         remaining_time = remaining_duration(user_info["start_time"], user_info["duration"])
                         if remaining_time <= 0:
+                            self._record_occupancy_end(node_key, user_info, node["status"])
                             removed_users_id.append(user_info["user_id"])
                             state_changed = True
 

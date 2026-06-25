@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 import lockbot.backend.app.audit.models  # noqa: F401
 import lockbot.backend.app.auth.models  # noqa: F401
 import lockbot.backend.app.bots.models  # noqa: F401
+import lockbot.backend.app.bots.occupancy  # noqa: F401
 import lockbot.backend.app.settings.models  # noqa: F401
 from lockbot.backend.app.admin.router import router as admin_router
 from lockbot.backend.app.audit.router import router as audit_router
@@ -106,6 +107,16 @@ def _migrate_users_token_version():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
         logger.info("Migrated users: added 'token_version' column")
+
+
+def _migrate_occupancy_records():
+    """Create occupancy_records table if it doesn't exist (backward-compatible migration)."""
+    from sqlalchemy import inspect as sa_inspect
+
+    insp = sa_inspect(engine)
+    if "occupancy_records" not in insp.get_table_names():
+        Base.metadata.tables["occupancy_records"].create(bind=engine)
+        logger.info("Created occupancy_records table")
 
 
 def _migrate_audit_logs():
@@ -202,6 +213,7 @@ async def lifespan(app: FastAPI):
     _migrate_users_token_version()
     _migrate_bot_soft_delete()
     _migrate_audit_logs()
+    _migrate_occupancy_records()
     _seed_dev_admin()
     _seed_dev_users()
     from lockbot.backend.app.bots.manager import bot_manager

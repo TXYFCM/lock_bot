@@ -74,6 +74,10 @@ class BaseLockBot:
         # Optional callback: invoked after a successful lock/slock so the
         # scheduler can recalculate its next wakeup without waiting for idle.
         self._on_state_changed: Callable[[], None] | None = None
+        # Optional callback: invoked when a user's lock on a node ends
+        # (manual unlock, auto-expiry, or kickout).  Signature:
+        #   (node_key: str, user_id: str, start_time: int, end_time: int, lock_mode: str)
+        self._on_occupancy_end: Callable[[str, str, int, int, str], None] | None = None
 
         self._notify_clamped_users()
 
@@ -95,6 +99,18 @@ class BaseLockBot:
         """Call _on_state_changed if wired up (no-op otherwise)."""
         if self._on_state_changed is not None:
             self._on_state_changed()
+
+    def _record_occupancy_end(self, node_key: str, user_info: dict, lock_mode: str) -> None:
+        """Call _on_occupancy_end if wired up (no-op otherwise).
+
+        Extracts start_time from user_info and computes end_time from the
+        lock's originally requested duration (start_time + duration).
+        """
+        if self._on_occupancy_end is not None:
+            start = user_info.get("start_time", 0)
+            duration = user_info.get("duration", 0)
+            end = start + duration
+            self._on_occupancy_end(node_key, user_info["user_id"], start, end, lock_mode)
 
     def _save_and_notify(self) -> None:
         """Persist bot state to disk and wake the scheduler (if wired).

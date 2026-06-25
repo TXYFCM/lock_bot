@@ -16,6 +16,29 @@ from lockbot.core.scheduler import BotScheduler
 logger = logging.getLogger(__name__)
 
 
+def _make_occupancy_handler(bot_id: int):
+    """Return a closure that writes OccupancyRecord to the DB.
+
+    The callback is invoked by the bot when a user's lock on a node ends
+    (manual unlock, auto-expiry, or kickout).
+    """
+    from lockbot.backend.app.bots.occupancy import record_occupancy
+
+    def _on_occupancy_end(node_key: str, user_id: str, start_time: int, end_time: int, lock_mode: str) -> None:
+        try:
+            record_occupancy(bot_id, node_key, user_id, start_time, end_time, lock_mode)
+        except Exception:
+            logger.warning(
+                "Failed to record occupancy bot=%d node=%s user=%s",
+                bot_id,
+                node_key,
+                user_id,
+                exc_info=True,
+            )
+
+    return _on_occupancy_end
+
+
 class BotManager:
     """
     Manages bot instances running in the FastAPI process.
@@ -80,6 +103,8 @@ class BotManager:
         )
         # Wire up state-change callback so new locks wake the scheduler immediately
         instance.bot._on_state_changed = lambda: self._scheduler.reschedule_soon(bot_id)
+        # Wire up occupancy-recording callback to persist lock history to DB
+        instance.bot._on_occupancy_end = _make_occupancy_handler(bot_id)
         logger.info("Started bot %d in-process (type=%s)", bot_id, instance.bot_type)
         return os.getpid()
 
