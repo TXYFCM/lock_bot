@@ -106,11 +106,13 @@ MESSAGES = {
     "help.bot_owner": "Owner: {owner}\n",
     # ── Help text (NODE) command examples ──
     "help.lock_example": "    lock {node} (lock node {node})\n",
-    "help.lock_duration_example": "    lock {node} {duration} (lock node {node} for {duration})\n",
-    "help.slock_example": "    slock {node} (shared-lock node {node})\n",
+    "help.lock_duration_example": "    lock {node} 3d (lock node {node} for 3d)\n",
+    "help.lock_multi_example": "    lock {node1},{node2} 2h (lock nodes {node1},{node2} for 2h)\n",
+    "help.slock_example": "    slock {node} 30m (shared-lock node {node} for 30m)\n",
     "help.unlock_example": "    unlock {node} (release node {node})\n",
-    "help.unlock_all_example": "    unlock (release all your resources)\n",
+    "help.free_multi_example": "    free {node1},{node2} (release nodes {node1},{node2})\n",
     "help.kickout_example": "    kickout {node} (force-release node {node})\n",
+    "help.kickout_multi_example": "    kickout {node1},{node2} (force-release nodes {node1},{node2})\n",
     "help.query_node_example": "    query {node} (query node {node})\n",
     # ── Help text (DEVICE) command examples ──
     "help.lock_all_devices_example": "    lock {node} (lock all devices on node)\n",

@@ -333,31 +333,29 @@ class NodeBot(BaseLockBot):
         assert len(cluster_configs) >= 1
         itr = iter(cluster_configs)
         example_node0 = next(itr)
-        if len(cluster_configs) <= 1:
-            example_node1 = None
-        else:
-            example_node1 = next(itr)
+        example_node1 = next(itr) if len(cluster_configs) > 1 else None
 
-        reply_info = t("help.rule3_lock_modes", config=self.config)
-        reply_info += f"    lock {example_node0}\n"
-        reply_info += f"    lock {example_node0} 3d\n"
+        parts = []
+        parts.append(t("help.rule3_lock_modes", config=self.config))
+        parts.append(t("help.lock_example", config=self.config, node=example_node0))
+        parts.append(t("help.lock_duration_example", config=self.config, node=example_node0))
         if example_node1 is not None:
-            reply_info += f"    lock {example_node0},{example_node1} 2h\n"
-        reply_info += f"    slock {example_node0} 30m\n"
-        reply_info += t("help.section2_title", config=self.config)
-        reply_info += f"    unlock {example_node0}\n"
+            parts.append(t("help.lock_multi_example", config=self.config, node1=example_node0, node2=example_node1))
+        parts.append(t("help.slock_example", config=self.config, node=example_node0))
+        parts.append(t("help.section2_title", config=self.config))
+        parts.append(t("help.unlock_example", config=self.config, node=example_node0))
         if example_node1 is not None:
-            reply_info += f"    free {example_node0},{example_node1} \n"
-        reply_info += t("help.free_all", config=self.config)
-        reply_info += t("help.section3_title", config=self.config)
-        reply_info += f"    kickout {example_node0} \n"
+            parts.append(t("help.free_multi_example", config=self.config, node1=example_node0, node2=example_node1))
+        parts.append(t("help.free_all", config=self.config))
+        parts.append(t("help.section3_title", config=self.config))
+        parts.append(t("help.kickout_example", config=self.config, node=example_node0))
         if example_node1 is not None:
-            reply_info += f"    kickout {example_node0},{example_node1} \n"
-        reply_info += t("help.section4_title", config=self.config)
-        reply_info += t("help.section5_title", config=self.config)
-        reply_info += t("help.query_at_bot", config=self.config)
-        reply_info += f"    {example_node0}\n\n"
-        return reply_info
+            parts.append(t("help.kickout_multi_example", config=self.config, node1=example_node0, node2=example_node1))
+        parts.append(t("help.section4_title", config=self.config))
+        parts.append(t("help.section5_title", config=self.config))
+        parts.append(t("help.query_at_bot", config=self.config))
+        parts.append(t("help.query_node_example", config=self.config, node=example_node0))
+        return "".join(parts)
 
     def _check_and_notify(self) -> float | None:
         """

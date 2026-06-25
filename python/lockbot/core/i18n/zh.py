@@ -102,11 +102,13 @@ MESSAGES = {
     "help.bot_owner": "管理人: {owner}\n",
     # ── Help text (NODE) command examples ──
     "help.lock_example": "    lock {node} (锁定{node}节点)\n",
-    "help.lock_duration_example": "    lock {node} {duration} (锁定{node}节点{duration})\n",
-    "help.slock_example": "    slock {node} (共享锁定{node}节点)\n",
+    "help.lock_duration_example": "    lock {node} 3d (锁定{node}节点3天)\n",
+    "help.lock_multi_example": "    lock {node1},{node2} 2h (锁定{node1}、{node2}节点2小时)\n",
+    "help.slock_example": "    slock {node} 30m (共享锁定{node}节点30分钟)\n",
     "help.unlock_example": "    unlock {node} (释放{node}节点)\n",
-    "help.unlock_all_example": "    unlock (释放所有申请过的资源)\n",
+    "help.free_multi_example": "    free {node1},{node2} (释放{node1}、{node2}节点)\n",
     "help.kickout_example": "    kickout {node} (强制释放{node}节点)\n",
+    "help.kickout_multi_example": "    kickout {node1},{node2} (强制释放{node1}、{node2}节点)\n",
     "help.query_node_example": "    query {node} (查询{node}节点)\n",
     # ── Help text (DEVICE) command examples ──
     "help.lock_all_devices_example": "    lock {node} (锁定当前节点的所有设备)\n",
