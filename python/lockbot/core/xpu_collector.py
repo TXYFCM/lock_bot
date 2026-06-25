@@ -118,7 +118,7 @@ smi_m_output=$(xpu-smi -m 2>&1)
 smi_m_rc=$?
 container=""
 if [ "$smi_rc" -eq 0 ] && ! printf '%s\n' "$smi_output" | grep -q "No running processes found"; then
-    pid=$(printf '%s\n' "$smi_output" | grep -E 'N/A[[:space:]]+N/A[[:space:]]+[0-9]+' | head -n 1 | awk '{{print $4}}')
+    pid=$(printf '%s\n' "$smi_output" | grep -E 'N/A[[:space:]]+N/A[[:space:]]+[0-9]+' | head -n 1 | awk '{{print $5}}')
     if [ -n "$pid" ] && [ -r "/proc/$pid/cgroup" ]; then
         cgroup_line=$(grep -E 'docker|containerd' "/proc/$pid/cgroup" 2>/dev/null | head -n 1)
         cid=$(printf '%s\n' "$cgroup_line" | sed -E 's#.*(docker[-/]?|containerd[-/]?)([0-9a-f]{{7,64}}).*#\\2#' | cut -c1-7)
