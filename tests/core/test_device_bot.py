@@ -185,35 +185,41 @@ def test_node_ips_node_filter(bot):
 
 def test_lock_unlock(bot):
     """Test lock unlock."""
+    success_release = "✅【资源释放成功】\n\n"
+
     reply = bot.lock("user1", "lock test dev0 1h")
-    assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"]
+    content = reply["message"]["body"][0]["content"]
+    assert "✅【资源申请成功】" in content
+    assert "test" in content and "dev0" in content and "user1" in content
 
     reply = bot.unlock("user1", "unlock test dev0")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"]
+    assert reply["message"]["body"][0]["content"] == success_release
 
     reply = bot.lock("user1", "lock test,test2 dev0 1h")
     assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"]
 
     reply = bot.unlock("user1", "unlock test, test2")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"]
+    assert reply["message"]["body"][0]["content"] == success_release
 
     reply = bot.lock("user1", "lock test, test2")
     assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"]
 
     reply = bot.unlock("user1", "free test, test2")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"]
+    assert reply["message"]["body"][0]["content"] == success_release
 
     reply = bot.lock("user1", "lock test, test2 3h")
     assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"]
 
     reply = bot.unlock("user1", "free test")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"]
+    assert reply["message"]["body"][0]["content"] == success_release
 
     reply = bot.unlock("user1", "free")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"]
+    assert reply["message"]["body"][0]["content"] == success_release
 
     reply = bot.slock("user1", "slock test, test2 3h")
-    assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"]
+    content = reply["message"]["body"][0]["content"]
+    assert "✅【资源申请成功】" in content
+    assert "test" in content and "dev" in content and "user1" in content
 
 
 def test_slock(bot):
@@ -277,7 +283,9 @@ def test_kickout(bot):
     """Test kickout."""
     bot.lock("user1", "lock test dev0 1h")
     reply = bot.kickout("admin", "kickout test dev0")
-    assert "✅【资源强制释放成功】by admin" in reply["message"]["body"][0]["content"]
+    content = reply["message"]["body"][0]["content"]
+    assert "✅【资源强制释放成功】by admin" in content
+    assert "【释放前】" in content and "【释放后】" in content
 
     bot.lock("user1", "lock test, test2 dev0 1h")
     reply = bot.kickout("admin", "kickout test, test2 dev0")

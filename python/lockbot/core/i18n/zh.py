@@ -61,8 +61,9 @@ MESSAGES = {
     "alert.your_turn_reminder": "请在{timeout}内使用lock命令锁定资源, 否则将自动跳过\n\n",
     # ── Query ──
     "query.cluster_usage_title": "机器状态报告（{timestamp}）\n",
-    "query.idle_summary_node": '<font color="blue">**空闲节点数：{idle_nodes}**</font>\n',
-    "query.idle_summary_device": '<font color="blue">**空闲节点数：{idle_nodes}，可用卡数：{idle_devs}**</font>\n',
+    "query.idle_summary_node": '<font color="blue">**未lock节点数：{unlocked_nodes}；当前Free节点数：{free_nodes}**</font>\n',
+    "query.idle_summary_device": '<font color="blue">**未Lock卡数：{unlocked_devs}；当前Free卡数：{free_devs}**</font>\n',
+    "query.status_tip": "ℹ️ 节点状态表示机器当前是否正在使用：BUSY 表示正在使用，FREE 表示当前空闲。\n",
     "query.my_resources_header": "已占用 {resources}\n",
     "query.table_header": "| IP | 节点状态 | 卡状态 | lock同学 | 剩余时间 |\n| --- | --- | --- | --- | --- |\n",
     "query.table_header_xpu": (

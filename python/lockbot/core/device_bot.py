@@ -351,7 +351,7 @@ class DeviceBot(BaseLockBot):
                             remove_user_info(device["current_users"], user_id)
                             if len(device["current_users"]) == 0:
                                 device["status"] = "idle"
-                reply = self.adapter.build_reply(self._msg_with_usage("success.resource_released"), [user_id])
+                reply = self.adapter.build_reply(t("success.resource_released", config=self.config), [user_id])
                 log_to_file(user_id, "unlock", "all", "all", config=self.config)
                 self._save_and_notify()
                 return reply
@@ -383,7 +383,7 @@ class DeviceBot(BaseLockBot):
                             remove_user_info(device["current_users"], user_id)
                             if len(device["current_users"]) == 0:
                                 device["status"] = "idle"
-                reply = self.adapter.build_reply(self._msg_with_usage("success.resource_released"), [user_id])
+                reply = self.adapter.build_reply(t("success.resource_released", config=self.config), [user_id])
                 log_to_file(user_id, "unlock", node_key, "all", config=self.config)
                 self._save_and_notify()
                 return reply
@@ -411,7 +411,7 @@ class DeviceBot(BaseLockBot):
                         device["status"] = "idle"
 
             reply = self.adapter.build_reply(
-                self._msg_with_usage("success.resource_released", node_key=node_key_list), [user_id]
+                t("success.resource_released", config=self.config), [user_id]
             )
             log_to_file(user_id, "unlock", node_key_list, dev_ids_list, config=self.config)
             self._save_and_notify()
@@ -577,16 +577,17 @@ class DeviceBot(BaseLockBot):
         return max(1.0, min_next) if min_next != float("inf") else None
 
     def _idle_summary(self, node_filter=None):
-        idle_nodes = 0
-        idle_devs = 0
+        unlocked_devs = 0
         for node_key, node_status in self.state.bot_state.items():
             if node_filter is not None and node_key != node_filter:
                 continue
-            node_idle_devs = sum(1 for dev in node_status if dev["status"] == "idle")
-            if node_idle_devs > 0:
-                idle_nodes += 1
-            idle_devs += node_idle_devs
-        return t("query.idle_summary_device", config=self.config, idle_nodes=idle_nodes, idle_devs=idle_devs)
+            unlocked_devs += sum(1 for dev in node_status if dev["status"] == "idle")
+        return t(
+            "query.idle_summary_device",
+            config=self.config,
+            unlocked_devs=unlocked_devs,
+            free_devs=unlocked_devs,
+        )
 
     def _current_usage(self, node_filter=None, user_id=None):
         """

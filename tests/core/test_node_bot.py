@@ -111,10 +111,12 @@ def test_node_ips(bot):
 def test_lock_unlock(bot):
     """Test lock unlock."""
     reply = bot.lock("user1", "lock test 1h")
-    assert "✅【资源申请成功】" in reply["message"]["body"][0]["content"], "lock resource failed"
+    content = reply["message"]["body"][0]["content"]
+    assert "✅【资源申请成功】" in content, "lock resource failed"
+    assert "test" in content and "user1" in content, "lock reply should include usage"
 
     reply2 = bot.unlock("user1", "unlock test")
-    assert "✅【资源释放成功】" in reply2["message"]["body"][0]["content"], "unlock resource failed"
+    assert reply2["message"]["body"][0]["content"] == "✅【资源释放成功】\n\n", "unlock resource failed"
 
 
 def test_slock(bot):
@@ -127,7 +129,7 @@ def test_unlock_all(bot):
     """Test unlock all."""
     bot.lock("user1", "lock test 1h")
     reply = bot.unlock("user1", "unlock")
-    assert "✅【资源释放成功】" in reply["message"]["body"][0]["content"], "unlock all resources failed"
+    assert reply["message"]["body"][0]["content"] == "✅【资源释放成功】\n\n", "unlock all resources failed"
 
 
 def test_usage_display_after_lock_and_slock(bot):
@@ -165,7 +167,9 @@ def test_kickout(bot):
     """Test kickout."""
     bot.lock("user1", "lock test 1h")
     reply = bot.kickout("admin", "kickout test")
-    assert "✅【资源强制释放成功】by admin" in reply["message"]["body"][0]["content"], "force release resource failed"
+    content = reply["message"]["body"][0]["content"]
+    assert "✅【资源强制释放成功】by admin" in content, "force release resource failed"
+    assert "【释放前】" in content and "【释放后】" in content, "kickout should include before/after usage"
 
     reply = bot.lock("admin", "lock test")
     assert "admin" in reply["message"]["body"][1]["atuserids"]

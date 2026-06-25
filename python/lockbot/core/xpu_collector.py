@@ -14,6 +14,12 @@ _FAILED = NodeUsage(util=None, mem=None, container="")
 _cache: dict[str, tuple[float, NodeUsage]] = {}
 
 _PID_RE = re.compile(r"N/A\s+N/A\s+(\d+)")
+_SMI_BEGIN = "__LOCKBOT_XPU_SMI_BEGIN__"
+_SMI_END = "__LOCKBOT_XPU_SMI_END__"
+_SMI_M_BEGIN = "__LOCKBOT_XPU_SMI_M_BEGIN__"
+_SMI_M_END = "__LOCKBOT_XPU_SMI_M_END__"
+_CONTAINER_BEGIN = "__LOCKBOT_CONTAINER_BEGIN__"
+_CONTAINER_END = "__LOCKBOT_CONTAINER_END__"
 
 
 def _parse_pid(xpu_output: str) -> str | None:
@@ -104,6 +110,73 @@ def _ssh_run(ip: str, user: str, remote_cmd: str, timeout: int) -> str:
     return out
 
 
+def _remote_probe_script() -> str:
+    return f"""\
+smi_output=$(xpu-smi 2>&1)
+smi_rc=$?
+smi_m_output=$(xpu-smi -m 2>&1)
+smi_m_rc=$?
+container=""
+if [ "$smi_rc" -eq 0 ] && ! printf '%s\n' "$smi_output" | grep -q "No running processes found"; then
+    pid=$(printf '%s\n' "$smi_output" | grep -E 'N/A[[:space:]]+N/A[[:space:]]+[0-9]+' | head -n 1 | awk '{{print $4}}')
+    if [ -n "$pid" ] && [ -r "/proc/$pid/cgroup" ]; then
+        cgroup_line=$(grep -E 'docker|containerd' "/proc/$pid/cgroup" 2>/dev/null | head -n 1)
+        cid=$(printf '%s\n' "$cgroup_line" | sed -E 's#.*(docker[-/]?|containerd[-/]?)([0-9a-f]{{7,64}}).*#\\2#' | cut -c1-7)
+        if [ -n "$cid" ]; then
+            container=$(docker ps --format '{{{{.ID}}}} {{{{.Names}}}}' 2>/dev/null | awk -v cid="$cid" '$1 ~ "^" cid {{print $2; exit}}')
+        fi
+    fi
+fi
+printf '%s\n' '{_SMI_BEGIN}'
+printf '%s\n' "$smi_output"
+printf '%s\n' '{_SMI_END}'
+printf '%s\n' '{_SMI_M_BEGIN}'
+printf '%s\n' "$smi_m_output"
+printf '%s\n' '{_SMI_M_END}'
+printf '%s\n' '{_CONTAINER_BEGIN}'
+printf '%s\n' "$container"
+printf '%s\n' '{_CONTAINER_END}'
+if [ "$smi_rc" -ne 0 ] || [ "$smi_m_rc" -ne 0 ]; then
+    exit 1
+fi
+"""
+
+
+def _ssh_collect(ip: str, user: str, timeout: int) -> str:
+    proc = subprocess.run(
+        ["ssh", *_SSH_OPTS, "-o", "ConnectTimeout=2", f"{user}@{ip}", "bash", "-s"],
+        input=_remote_probe_script(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        encoding="utf-8",
+        check=True,
+    )
+    return proc.stdout
+
+
+def _extract_section(output: str, begin: str, end: str) -> str | None:
+    begin_marker = begin + "\n"
+    end_marker = "\n" + end
+    start = output.find(begin_marker)
+    if start == -1:
+        return None
+    start += len(begin_marker)
+    finish = output.find(end_marker, start)
+    if finish == -1:
+        return None
+    return output[start:finish]
+
+
+def _split_remote_output(output: str) -> tuple[str, str, str] | None:
+    smi = _extract_section(output, _SMI_BEGIN, _SMI_END)
+    smi_m = _extract_section(output, _SMI_M_BEGIN, _SMI_M_END)
+    container = _extract_section(output, _CONTAINER_BEGIN, _CONTAINER_END)
+    if smi is None or smi_m is None or container is None:
+        return None
+    return smi, smi_m, container.strip()
+
+
 def _resolve_container(ip: str, user: str, pid: str, timeout: int) -> str:
     try:
         cgroup = _ssh_run(ip, user, f"cat /proc/{pid}/cgroup 2>/dev/null", timeout)
@@ -125,18 +198,14 @@ def _resolve_container(ip: str, user: str, pid: str, timeout: int) -> str:
 
 
 def _collect_one(ip: str, user: str, timeout: int) -> NodeUsage:
-    if not _ping(ip) or not _ssh_ok(ip, user):
-        return _FAILED
     try:
-        smi = _ssh_run(ip, user, "xpu-smi", timeout)
-        smi_m = _ssh_run(ip, user, "xpu-smi -m", timeout)
+        parts = _split_remote_output(_ssh_collect(ip, user, timeout))
     except Exception:
         return _FAILED
-    util = _parse_util(smi_m)
-    mem = _parse_mem(smi_m)
-    pid = _parse_pid(smi)
-    container = _resolve_container(ip, user, pid, timeout) if pid else ""
-    return NodeUsage(util=util, mem=mem, container=container)
+    if parts is None:
+        return _FAILED
+    _smi, smi_m, container = parts
+    return NodeUsage(util=_parse_util(smi_m), mem=_parse_mem(smi_m), container=container)
 
 
 def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]:

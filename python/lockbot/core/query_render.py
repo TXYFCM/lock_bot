@@ -63,16 +63,17 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
     lines = [t("query.cluster_usage_title", config=config, timestamp=_now_str())]
 
     # ── summary ─────────────────────────────────────────────────────────
-    idle_nodes = 0
-    idle_devs = 0
-    for devs in bot_state.values():
-        node_idle = sum(1 for d in devs if d["status"] == "idle")
-        if node_idle == len(devs):
-            idle_nodes += 1
-        idle_devs += node_idle
-    lines.append(t("query.idle_summary_device", config=config, idle_nodes=idle_nodes, idle_devs=idle_devs))
+    threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
+    unlocked_devs = sum(1 for devs in bot_state.values() for dev in devs if dev["status"] == "idle")
+    free_devs = sum(
+        len(devs) for node_key, devs in bot_state.items() if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free"
+    )
+    lines.append(
+        t("query.idle_summary_device", config=config, unlocked_devs=unlocked_devs, free_devs=free_devs)
+    )
 
     # ── tip (right under the summary) ────────────────────────────────────
+    lines.append(t("query.status_tip", config=config))
     tip = config.get_val("QUERY_TIP") if config else ""
     if tip:
         lines.append(tip + "\n")
@@ -81,7 +82,6 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
     header_key = "query.table_header_xpu" if xpu_usage is not None else "query.table_header"
     lines.append(t(header_key, config=config))
     cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
-    threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
     entries = []
     for order, (node_key, devs) in enumerate(bot_state.items()):
         rem = min_remaining(devs)
@@ -101,7 +101,7 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         rows = render_device_lines(devs, grouped_usage, idle_groups, config=config)
         first_row = True
         for is_idle, fields in rows:
-            dev_cell = f"{fields['dev']} {status_badge}"
+            dev_cell = fields["dev"]
             if is_idle:
                 user_cell = _UNLOCK
                 dur_cell = "--"
@@ -133,10 +133,17 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
         bot_state = {k: v for k, v in bot_state.items() if k == node_filter}
     lines = [t("query.cluster_usage_title", config=config, timestamp=_now_str())]
 
-    idle_nodes = sum(1 for ns in bot_state.values() if ns["status"] == "idle")
-    lines.append(t("query.idle_summary_node", config=config, idle_nodes=idle_nodes))
+    threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
+    unlocked_nodes = sum(1 for ns in bot_state.values() if ns["status"] == "idle")
+    free_nodes = sum(
+        1 for node_key in bot_state if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free"
+    )
+    lines.append(
+        t("query.idle_summary_node", config=config, unlocked_nodes=unlocked_nodes, free_nodes=free_nodes)
+    )
 
     # ── tip (right under the summary) ────────────────────────────────────
+    lines.append(t("query.status_tip", config=config))
     tip = config.get_val("QUERY_TIP") if config else ""
     if tip:
         lines.append(tip + "\n")
@@ -145,7 +152,6 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
     header_key = "query.table_header_node_xpu" if xpu_on else "query.table_header_node"
     lines.append(t(header_key, config=config))
     cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
-    threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
     entries = []
     for order, (node_key, ns) in enumerate(bot_state.items()):
         rem = min_remaining(ns)

@@ -42,6 +42,9 @@ def test_node_memory_based_seven_columns_and_status():
         "n2": NodeUsage(util=90.0, mem=80.0, container="ctr2"),  # locked node, high mem -> BUSY
     }
     out = build_node_query(_state(), None, _config(), memory_based=True, xpu_usage=xpu)
+    assert "未lock节点数：1；当前Free节点数：1" in out
+    assert "节点状态表示机器当前是否正在使用" in out
+    assert "10" not in out.split("节点状态表示机器当前是否正在使用", 1)[1].split("| IP |", 1)[0]
     assert "XPU%/MEM%" in out
     assert "5.0%/2.0%" in out
     assert "90.0%/80.0%" in out
@@ -49,6 +52,31 @@ def test_node_memory_based_seven_columns_and_status():
     assert "FREE" in out and "BUSY" in out
     # idle n1 still shows null even though decoupled status is FREE
     assert "null" in out
+
+
+def test_node_summary_decouples_lock_and_free():
+    state = {
+        "locked_low": {
+            "status": "exclusive",
+            "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            "booking_list": [],
+        },
+        "idle_high": {"status": "idle", "current_users": [], "booking_list": []},
+    }
+    cfg = Config(
+        {
+            "BOT_TYPE": "NODE",
+            "CLUSTER_CONFIGS": {"locked_low": "10.0.0.1", "idle_high": "10.0.0.2"},
+            "QUERY_TIP": "",
+            "MEM_BUSY_THRESHOLD": 10,
+        }
+    )
+    xpu = {
+        "locked_low": NodeUsage(util=1.0, mem=2.0, container=""),
+        "idle_high": NodeUsage(util=99.0, mem=95.0, container="big"),
+    }
+    out = build_node_query(state, None, cfg, memory_based=True, xpu_usage=xpu)
+    assert "未lock节点数：1；当前Free节点数：1" in out
 
 
 def test_node_status_decoupled_from_lock():
