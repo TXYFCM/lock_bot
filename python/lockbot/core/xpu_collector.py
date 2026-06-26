@@ -118,7 +118,7 @@ smi_m_output=$(xpu-smi -m 2>&1)
 smi_m_rc=$?
 container=""
 if [ "$smi_rc" -eq 0 ] && ! printf '%s\n' "$smi_output" | grep -q "No running processes found"; then
-    pid=$(printf '%s\n' "$smi_output" | grep -E 'N/A[[:space:]]+N/A[[:space:]]+[0-9]+' | head -n 1 | awk '{{print $5}}')
+    pid=$(printf '%s\n' "$smi_output" | grep -E 'N/A[[:space:]]+N/A[[:space:]]+[0-9]+' | awk '{{print $NF+0, $5}}' | sort -rn | head -n 1 | awk '{{print $2}}')
     if [ -n "$pid" ] && [ -r "/proc/$pid/cgroup" ]; then
         cgroup_line=$(grep -E 'docker|containerd' "/proc/$pid/cgroup" 2>/dev/null | head -n 1)
         cid=$(printf '%s\n' "$cgroup_line" | sed -E 's#.*(docker[-/]?|containerd[-/]?)([0-9a-f]{{7,64}}).*#\\2#' | cut -c1-7)
@@ -197,7 +197,7 @@ def _resolve_container(ip: str, user: str, pid: str, timeout: int) -> str:
     return ""
 
 
-def _collect_one(ip: str, user: str, timeout: int) -> NodeUsage:
+def _collect_one(ip: str, user: str, timeout: int, container_mem_threshold: float = 0.02) -> NodeUsage:
     try:
         parts = _split_remote_output(_ssh_collect(ip, user, timeout))
     except Exception:
@@ -205,7 +205,10 @@ def _collect_one(ip: str, user: str, timeout: int) -> NodeUsage:
     if parts is None:
         return _FAILED
     _smi, smi_m, container = parts
-    return NodeUsage(util=_parse_util(smi_m), mem=_parse_mem(smi_m), container=container)
+    mem = _parse_mem(smi_m)
+    if mem is not None and mem < container_mem_threshold:
+        container = ""
+    return NodeUsage(util=_parse_util(smi_m), mem=mem, container=container)
 
 
 def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]:
@@ -216,6 +219,7 @@ def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]
     ttl = config.get_val("XPU_USAGE_TTL", 60)
     user = config.get_val("SSH_USER", "v_qiujie04")
     timeout = config.get_val("SSH_CMD_TIMEOUT", 15)
+    container_threshold = config.get_val("CONTAINER_MIN_MEM_PCT", 0.02)
     now = time.time()
     result: dict[str, NodeUsage] = {}
     to_fetch: dict[str, str] = {}
@@ -227,7 +231,7 @@ def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]
             to_fetch[node_key] = ip
     if to_fetch:
         with ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
-            futures = {ex.submit(_collect_one, ip, user, timeout): nk for nk, ip in to_fetch.items()}
+            futures = {ex.submit(_collect_one, ip, user, timeout, container_threshold): nk for nk, ip in to_fetch.items()}
             for fut, node_key in futures.items():
                 try:
                     usage = fut.result()

@@ -119,6 +119,11 @@ _CONFIG_SCHEMA = {
         "description": "GPU memory utilization %% above which a node/device is shown BUSY",
         "env": True,
     },
+    "CONTAINER_MIN_MEM_PCT": {
+        "default": 0.02,
+        "description": "Minimum GPU memory utilization %% to show container name; below this the container column is blank",
+        "env": True,
+    },
 }
 
 # ── Internal constants (not configurable via file/env) ─────────────────
