@@ -121,7 +121,7 @@ def test_query(bot):
     result = bot.query("user1")
     content = result["message"]["body"][0]["content"]
     assert "message" in result and "机器状态报告" in content
-    assert "| IP | 节点状态 | 卡状态 | lock同学 |" in content
+    assert "| IP | lock同学 | 节点状态 | 卡状态 |" in content
     assert "test" in content and "dev" in content
 
 

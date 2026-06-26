@@ -141,6 +141,7 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
                         {
                             "node": "",
                             "dev": dev_range,
+                            "dev_ids": list(dev_ids),
                             "model": model_str,
                             "user": user_id,
                             "mode": format_access_mode(status, config=config),
@@ -162,6 +163,7 @@ def render_device_lines(node_status, grouped_usage, idle_groups, config=None):
                     {
                         "node": "",
                         "dev": dev_range,
+                        "dev_ids": list(group),
                         "model": model_str,
                         "user": "",
                         "mode": "",

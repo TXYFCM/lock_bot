@@ -1,7 +1,16 @@
 import subprocess
 from unittest import mock
 
-from lockbot.core.xpu_collector import NodeUsage, _parse_mem, _parse_pid, _parse_util, _remote_probe_script, _split_remote_output
+from lockbot.core.xpu_collector import (
+    CardUsage,
+    NodeUsage,
+    _parse_cards,
+    _parse_mem,
+    _parse_pid,
+    _parse_util,
+    _remote_probe_script,
+    _split_remote_output,
+)
 
 
 def _remote_output(smi, smi_m, container=""):
@@ -35,6 +44,25 @@ def test_parse_mem_averages_ratio():
 
 def test_parse_mem_empty_returns_none():
     assert _parse_mem("") is None
+
+
+def test_parse_cards_per_card_values():
+    line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%, util 80
+    line1 = " ".join(["x"] * 17 + ["150", "200", "90"])  # mem 75%, util 90
+    cards = _parse_cards("\n".join([line0, line1]))
+    assert cards == [CardUsage(util=80.0, mem=50.0, container=""), CardUsage(util=90.0, mem=75.0, container="")]
+
+
+def test_parse_cards_zero_total_keeps_card_with_none_mem():
+    line = " ".join(["x"] * 17 + ["0", "0", "0"])  # total 0 -> mem None, but card still present
+    cards = _parse_cards(line)
+    assert len(cards) == 1
+    assert cards[0].mem is None
+    assert cards[0].util == 0.0
+
+
+def test_node_usage_per_card_defaults_none():
+    assert NodeUsage(util=1.0, mem=2.0, container="c").per_card is None
 
 
 def test_parse_util_empty_returns_none():
@@ -115,6 +143,25 @@ def test_collect_one_busy_resolves_container():
     assert usage.util == 82.0
     assert usage.mem == 50.0
     assert usage.container == "my_container"
+
+
+def test_collect_one_populates_per_card():
+    from lockbot.core import xpu_collector
+
+    line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
+    line1 = " ".join(["x"] * 17 + ["0", "200", "0"])  # mem 0% (below container threshold)
+    smi_m = "\n".join([line0, line1])
+    with mock.patch.object(
+        xpu_collector,
+        "_ssh_collect",
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "my_container"),
+    ):
+        usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
+    assert usage.per_card is not None
+    assert len(usage.per_card) == 2
+    # card0 has mem >= threshold -> node container; card1 below threshold -> blank
+    assert usage.per_card[0] == CardUsage(util=80.0, mem=50.0, container="my_container")
+    assert usage.per_card[1].container == ""
 
 
 def test_collect_one_timeout_returns_failed():

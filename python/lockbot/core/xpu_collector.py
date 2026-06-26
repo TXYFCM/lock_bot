@@ -6,7 +6,14 @@ import time
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 
-NodeUsage = namedtuple("NodeUsage", ["util", "mem", "container"])  # util/mem: float|None (%), container: str
+CardUsage = namedtuple("CardUsage", ["util", "mem", "container"])  # per GPU card; util/mem: float|None (%)
+# util/mem are the NODE AVERAGE (used by NODE bot, sort key, summary counts); per_card holds the
+# per-card breakdown (DEVICE bot mixed-lock rendering). per_card defaults to None for back-compat.
+# NOTE: per-card container is currently best-effort node-level (same container on every card, blanked
+# per-card below the mem threshold). The xpu-smi Processes table's first column IS the card index, so a
+# true pid->card->container mapping is feasible later; only _collect_one's per_card fill would change.
+NodeUsage = namedtuple("NodeUsage", ["util", "mem", "container", "per_card"])
+NodeUsage.__new__.__defaults__ = (None,)  # per_card optional
 
 _FAILED = NodeUsage(util=None, mem=None, container="")
 
@@ -67,6 +74,28 @@ def _parse_mem(xpu_m_output: str) -> float | None:
     if not ratios:
         return None
     return round(sum(ratios) / len(ratios), 2)
+
+
+def _parse_cards(xpu_m_output: str) -> list[CardUsage]:
+    """Per-card util/mem from `xpu-smi -m`, one entry per parseable row (dev_id order).
+
+    Cards are emitted even when total==0 (mem=None) so the list index stays aligned
+    with the GPU index (dev_id). container is filled later by _collect_one.
+    """
+    cards = []
+    for line in xpu_m_output.splitlines():
+        cols = line.split()
+        if len(cols) < 20:
+            continue
+        try:
+            util = float(cols[19])
+            used = float(cols[17])
+            total = float(cols[18])
+        except ValueError:
+            continue
+        mem = round(used / total * 100, 2) if total > 0 else None
+        cards.append(CardUsage(util=util, mem=mem, container=""))
+    return cards
 
 
 _SSH_OPTS = [
@@ -208,7 +237,16 @@ def _collect_one(ip: str, user: str, timeout: int, container_mem_threshold: floa
     mem = _parse_mem(smi_m)
     if mem is not None and mem < container_mem_threshold:
         container = ""
-    return NodeUsage(util=_parse_util(smi_m), mem=mem, container=container)
+    cards = _parse_cards(smi_m)
+    # Per-card container is best-effort node-level for now: every card carries the node's single
+    # resolved container, blanked per-card below the mem threshold. util/mem ARE genuinely per-card.
+    # A true pid->card->container mapping is feasible later (the xpu-smi Processes table's first
+    # column is the card index); only this per_card fill would need to change, not the renderer.
+    per_card = [
+        c._replace(container=(container if (c.mem is not None and c.mem >= container_mem_threshold) else ""))
+        for c in cards
+    ]
+    return NodeUsage(util=_parse_util(smi_m), mem=mem, container=container, per_card=per_card)
 
 
 def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]:
@@ -231,7 +269,9 @@ def collect_node_usage(node_ips: dict[str, str], config) -> dict[str, NodeUsage]
             to_fetch[node_key] = ip
     if to_fetch:
         with ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
-            futures = {ex.submit(_collect_one, ip, user, timeout, container_threshold): nk for nk, ip in to_fetch.items()}
+            futures = {
+                ex.submit(_collect_one, ip, user, timeout, container_threshold): nk for nk, ip in to_fetch.items()
+            }
             for fut, node_key in futures.items():
                 try:
                     usage = fut.result()

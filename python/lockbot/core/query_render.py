@@ -66,11 +66,11 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
     threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
     unlocked_devs = sum(1 for devs in bot_state.values() for dev in devs if dev["status"] == "idle")
     free_devs = sum(
-        len(devs) for node_key, devs in bot_state.items() if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free"
+        len(devs)
+        for node_key, devs in bot_state.items()
+        if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free"
     )
-    lines.append(
-        t("query.idle_summary_device", config=config, unlocked_devs=unlocked_devs, free_devs=free_devs)
-    )
+    lines.append(t("query.idle_summary_device", config=config, unlocked_devs=unlocked_devs, free_devs=free_devs))
 
     # ── tip (right under the summary) ────────────────────────────────────
     lines.append(t("query.status_tip", config=config))
@@ -99,6 +99,13 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
             shown.update(dev_ids)
         idle_groups = group_idle_devices(devs, shown)
         rows = render_device_lines(devs, grouped_usage, idle_groups, config=config)
+        xpu_on = xpu_usage is not None
+        usage = xpu_usage.get(node_key) if xpu_on else None
+        # A node renders as one averaged block when it has a single group (whole node by one
+        # user, or fully idle homogeneous). With multiple lock/idle groups (mixed lockers), the
+        # XPU%/MEM% + container are shown per group (averaged over that group's cards).
+        group_count = sum(1 for _is_idle, f in rows if f["dev"])
+        uniform = group_count <= 1
         first_row = True
         for is_idle, fields in rows:
             dev_cell = fields["dev"]
@@ -111,9 +118,17 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                 dur_cell = fields["dur"] or "--"
             node_cell = _node_label(cluster_configs, node_key) if first_row else ""
             node_status_cell = status_badge if first_row else ""
-            cells = [node_cell, node_status_cell, dev_cell, user_cell, dur_cell]
-            usage = xpu_usage.get(node_key) if xpu_usage is not None else None
-            lines.append(_md_row(*_with_xpu(cells, usage, first_row=first_row, xpu_on=xpu_usage is not None)))
+            # Column order: IP | lock同学 | 节点状态 | 卡状态 | 剩余时间
+            cells = [node_cell, user_cell, node_status_cell, dev_cell, dur_cell]
+            if xpu_on:
+                if uniform:
+                    util_cell, container_cell = _format_xpu_cells(usage) if first_row else ("", "")
+                else:
+                    util_cell, container_cell = (
+                        _group_xpu_cells(usage, fields["dev_ids"]) if fields["dev"] else ("", "")
+                    )
+                cells = [*cells, util_cell, container_cell]
+            lines.append(_md_row(*cells))
             first_row = False
 
     return "".join(lines)
@@ -135,12 +150,8 @@ def build_node_query(bot_state, user_id, config, node_filter=None, xpu_usage=Non
 
     threshold = config.get_val("MEM_BUSY_THRESHOLD", 10) if config else 10
     unlocked_nodes = sum(1 for ns in bot_state.values() if ns["status"] == "idle")
-    free_nodes = sum(
-        1 for node_key in bot_state if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free"
-    )
-    lines.append(
-        t("query.idle_summary_node", config=config, unlocked_nodes=unlocked_nodes, free_nodes=free_nodes)
-    )
+    free_nodes = sum(1 for node_key in bot_state if _mem_category(_node_mem(xpu_usage, node_key), threshold) == "free")
+    lines.append(t("query.idle_summary_node", config=config, unlocked_nodes=unlocked_nodes, free_nodes=free_nodes))
 
     # ── tip (right under the summary) ────────────────────────────────────
     lines.append(t("query.status_tip", config=config))
@@ -241,6 +252,27 @@ def _format_xpu_cells(usage):
     u = f"{usage.util}%" if usage.util is not None else "N/A"
     m = f"{usage.mem}%" if usage.mem is not None else "N/A"
     return f"{u}/{m}", usage.container or ""
+
+
+def _group_xpu_cells(usage, dev_ids):
+    """Return (util_cell, container_cell) averaged over a card-index group's per_card entries.
+
+    Falls back to the node-average (_format_xpu_cells) when per_card is missing/empty or any
+    index is out of range. Used for mixed-locker DEVICE nodes where each lock/idle group shows
+    its own cards' average.
+    """
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card or any(i >= len(per_card) for i in dev_ids):
+        return _format_xpu_cells(usage)
+    cards = [per_card[i] for i in dev_ids]
+    utils = [c.util for c in cards if c.util is not None]
+    mems = [c.mem for c in cards if c.mem is not None]
+    if not utils and not mems:
+        return "N/A", ""
+    u = f"{round(sum(utils) / len(utils), 2)}%" if utils else "N/A"
+    m = f"{round(sum(mems) / len(mems), 2)}%" if mems else "N/A"
+    container = next((c.container for c in cards if c.container), "")
+    return f"{u}/{m}", container
 
 
 def _with_xpu(cells, usage, *, first_row, xpu_on):
