@@ -1,0 +1,38 @@
+# XPU Monitor - systemd service
+# 用法:
+#   sudo cp xpu-monitor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now xpu-monitor
+#   sudo systemctl status xpu-monitor
+
+[Unit]
+Description=XPU Cluster Resource Monitor Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=v_qiujie04
+WorkingDirectory=/home/users/v_qiujie04/monitor
+ExecStart=/home/users/v_qiujie04/.nvm/versions/node/v22.23.1/bin/node proxy.js
+
+# 环境变量（可选，不设使用 config.json 默认值）
+# Environment="PROXY_PORT=8900"
+# Environment="LOCKBOT_HOST=10.206.192.17"
+# Environment="LOCKBOT_PORT=8875"
+# Environment="MONQUERY_HOST=api.mt.noah.baidu.com"
+# Environment="MONQUERY_PORT=8557"
+
+# 自动重启
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xpu-monitor
+
+[Install]
+WantedBy=multi-user.target

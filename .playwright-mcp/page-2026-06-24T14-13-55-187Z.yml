@@ -1,0 +1,9 @@
+- generic [ref=e2]:
+  - heading "开发机集群资源监控" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "Lock Bot 登录" [level=2] [ref=e5]
+    - textbox "用户名" [ref=e6]: test_user
+    - textbox "密码" [ref=e7]: test_pass
+    - button "登 录" [ref=e8] [cursor=pointer]
+    - generic [ref=e10]: "登录失败：Login failed: 401 Unauthorized"
+    - generic [ref=e9]: 登录后自动接入 Lock Bot + 监控数据

@@ -1,0 +1,10 @@
+{
+  "proxy": {
+    "port": 8900,
+    "bind": "0.0.0.0"
+  },
+  "backend": {
+    "lockbot": { "host": "10.206.192.17", "port": 8875 },
+    "monquery": { "host": "api.mt.noah.baidu.com", "port": 8557 }
+  }
+}

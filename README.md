@@ -1,165 +1,332 @@
-# lockbot
+# 开发机集群 XPU 资源监控仪表盘
 
-Cluster resource management bot for IM platforms (e.g., Baidu InfoFlow).
+纯前端单页应用，实时展示百度百舸 GPU 集群的 XPU 使用率、显存占用率，以及 Lock Bot 平台的资源锁定状态。
 
-Lock and unlock GPU devices, cluster nodes, and queue slots via chat commands.
-Supports both standalone Flask deployment and a full platform mode with FastAPI + Vue.js frontend.
+**集群**：`wxtky02-p800-backup-8nic-vd`（44 节点 × 8 卡，node1~node51，排除 13/14/17/33/36）+ bdc9/19/28（仅展示 Lock Bot 占用，无 Monquery 监控数据）。
 
-[中文文档](README_CN.md) | [Live Demo](https://dynamicheart.github.io/lockbot/)
-
-[![PyPI version](https://img.shields.io/pypi/v/lockbot?color=blue)](https://pypi.org/project/lockbot/)
-[![Docker Image](https://img.shields.io/badge/ghcr.io-dynamicheart%2Flockbot-blue?logo=docker)](https://github.com/DynamicHeart/lockbot/pkgs/container/lockbot)
-
-## Features
-
-- **Device Lock Bot** — Lock/unlock individual GPUs or devices on a cluster
-- **Node Lock Bot** — Lock/unlock entire cluster nodes
-- **Queue Bot** — Manage a queue for resource allocation with booking and preemption
-- **Platform Mode** — Web UI (Vue 3 + Element Plus) for managing multiple bots, user authentication (JWT), role-based access control, and real-time logs
-- **State Persistence** — Bot state survives restarts (JSON file)
-- **Bilingual** — English and Chinese UI and bot responses
-
-## Quick Start — Platform Mode (Recommended)
-
-Full management platform with Web UI, multi-bot orchestration, user authentication, and admin panel.
-
-1. Install:
+## 快速开始
 
 ```bash
-pip install lockbot
+cd /home/users/v_qiujie04/monitor
+node proxy.js                    # 启动本地代理
+# 浏览器打开 http://localhost:8900/demo.html
 ```
 
-2. Set environment variables:
+在页面用 **Lock Bot 平台账号密码** 登录。Token 自动保存到 localStorage，4 小时有效期内刷新无需重登。
+
+> **前置条件**：接入百度内网，能访问 Lock Bot（`10.206.192.17:8875`）和 Monquery（`api.mt.noah.baidu.com:8557`）。
+
+## 功能
+
+### 资源总览
+- 顶部 3 张统计卡片：总节点数 / 空闲节点 / 占用节点，一目了然
+
+### 状态栏 & 降级策略
+- 🟢 绿色「数据正常」— Lock Bot + Monquery 双通道正常
+- 🟡 黄色「监控数据获取失败」— Monquery 不可达，利用率显示 `--`，占用信息仍可见
+- 🔴 红色「所有 Bot 离线」— Lock Bot 全挂，保留上次节点列表
+- 双 API 均不可达且连续失败 ≥3 次 → 全页错误覆盖层，可手动重试或返回登录
+- 自动刷新失败 → Toast 浮动通知（5 秒消失），不覆盖现有数据
+
+### 节点列表
+- **状态徽章**：FREE（绿）/ BUSY（红）/ 无数据（灰）
+- **类型标签**：DEVICE（紫色，始终展开 8 卡详情）/ NODE（灰色，点击 `+`/`−` 折叠展开）
+- **异常检测**：
+  - 匿名占用（BUSY 但无 Lock Bot 锁）→ 橙色标记
+  - 疑似僵尸锁（FREE 但有 Lock Bot 锁）→ 红色标记
+- **占用红条**：Lock Bot 当前锁 + 当天历史占用，显示用户名，hover 查看时间段
+- **双线折线图**：节点级 Canvas 叠加 XPU 使用率（蓝色）+ 显存利用率（橙色），底部 1 小时间隔微网格
+- **卡片级折线图**：DEVICE 节点每张卡独立迷你折线图（24px），展示单卡全天 XPU + 显存趋势
+- **红色时间线**：当前时刻竖线 + 时间标签，每分钟自动推进
+
+### 筛选 & 排序
+- 按 Bot 类型（全部 / DEVICE / NODE）筛选
+- 按状态（全部 / 空闲 / 占用）筛选
+- 按 XPU 利用率 / 显存利用率降序排列
+- 关键字搜索（节点名）
+
+### 交互细节
+- Canvas hover 快照恢复 + 增量画点，避免全路径重绘
+- 展开/收起 NODE 节点保持滚动位置不变（`instant` 回位）
+- 页面不可见时自动跳过刷新，切回后立即刷新
+
+### 渐进式渲染
+- 首屏：Lock Bot 数据 1-3 秒先出（节点名、占用状态、红条即时可见）
+- 补全：Monquery 数据到达后补上利用率 + 显存（可能 10-30 秒，~5MB）
+- 任一 API 失败不阻断全局
+
+### 自动刷新
+- 每 60 秒自动拉取全部数据（Lock Bot 状态 + 历史占用 + Monquery）
+- 仅页面可见时执行
+
+## 架构
+
+```
+浏览器 (demo.html — ES Module, 约 1000 行)
+  │
+  ├─ api.js         HTTP 请求层（30s 超时 AbortController）
+  │   ├─ loginLockBot(token)              → POST /lockbot/api/auth/login
+  │   ├─ fetchLockBotList(token)          → GET  /lockbot/api/bots
+  │   ├─ fetchLockBotState(botId, token)  → GET  /lockbot/api/bots/{id}/state
+  │   ├─ fetchLockBotOccupancy(botId, date, token) → GET  /lockbot/api/bots/{id}/occupancy?date=
+  │   └─ fetchMonqueryUtilization(start, end) → GET  /monquery/monquery/getHistoryitemdata
+  │                                              (44 nodes × 17 metrics, interval=300)
+  │
+  ├─ adapter.js     数据适配层
+  │   ├─ adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occupancyHistory) → NodeData[]
+  │   └─ 辅助：toSlotIndex / parseSlotFromTimestamp / groupHistoryOccupations /
+  │           deriveMemOccupations / fillUtilArray / buildOccupationRange
+  │
+  └─ demo.html      渲染 & 交互
+      ├─ renderStats / renderList / drawUtilLine
+      ├─ bindCanvasHover（快照恢复 + 增量圆点）
+      ├─ bindTooltips（占用块 hover 时间）
+      ├─ addGlobalNowLine（红色当前时间线）
+      └─ 两阶段渲染：Lock Bot 先行，Monquery 后补
+```
+
+### 文件职责
+
+| 文件 | 作用 |
+|------|------|
+| `demo.html` | 前端仪表盘 UI + 内联 CSS + ES Module（约 1000 行） |
+| `api.js` | API 调用层（纯 fetch 封装，无业务逻辑） |
+| `adapter.js` | 数据适配层（原始 API 响应 → `NodeData[]`） |
+| `proxy.js` | 本地代理（Node.js 原生 http 模块，推荐） |
+| `proxy.py` | 本地代理（Python 3 备用） |
+| `config.json` | 部署配置（代理端口 + 后端地址） |
+| `config.example.json` | 配置模板，新环境直接复制修改 |
+| `deploy.sh` | 一键部署脚本 |
+| `pm2.config.cjs` | PM2 进程守护配置 |
+| `xpu-monitor.service` | systemd 服务单元 |
+| `CLAUDE.md` | 项目文档（给 AI 助手用） |
+| `TODO.md` | 待优化项清单 |
+
+### 代理路由
+
+代理启动后按以下映射转发请求：
+
+| 前端路径 | 转发到 |
+|----------|--------|
+| `/lockbot/*` | `http://10.206.192.17:8875/*` |
+| `/monquery/*` | `http://api.mt.noah.baidu.com:8557/*` |
+
+后端地址通过 `config.json` 配置，支持环境变量覆盖（见部署章节）。
+
+## 核心数据结构
+
+```js
+NodeData = {
+  name: "node1",                     // 节点名（"node1" 或 "bdc9"）
+  status: "FREE" | "BUSY",           // XPU 或显存任一 ≥ 10% → BUSY
+  currentUtil: 45.2,                 // 当前 5 分钟槽平均 XPU 使用率
+  currentMemUtil: 32.1,              // 当前 5 分钟槽平均显存占用率
+  avgUtil:    number[288],           // 288 槽平均 XPU 使用率（节点级）
+  avgMemUtil: number[288],           // 288 槽平均显存利用率（8 卡均值）
+  cardUtils:    number[8][288],      // 8×288 单卡 XPU 使用率
+  cardMemUtils: number[8][288],      // 8×288 单卡显存利用率
+  occupations:     [{start, end, user}],     // 节点级占用（当前锁 + 历史）
+  cardOccupations: [{start, end, user}][8],  // 每卡 Lock Bot 锁记录
+  cardMemOccupations: [{start, end}][8],     // 每卡显存推导占用
+  botType: "DEVICE" | "NODE",        // Bot 类型
+  hasMonqueryData: boolean,          // 是否有监控数据（bdc 为 false）
+  hasActiveLock: boolean,            // 当前是否有活跃 Lock Bot 锁
+}
+```
+
+**时间轴**：0-287 索引 = 全天 288 个 5 分钟槽（`index = hour * 12 + floor(minutes / 5)`，0 = 00:00，287 = 23:55）。
+
+## API 说明
+
+### Lock Bot
+
+| 项目 | 值 |
+|------|-----|
+| 地址 | `http://10.206.192.17:8875` |
+| 鉴权 | JWT Bearer Token（`POST /api/auth/login` 获取） |
+
+| 接口 | 方法 | 用途 |
+|------|------|------|
+| `/api/auth/login` | POST | 登录，返回 JWT token |
+| `/api/bots` | GET | 获取用户所有 Bot 列表（含 bot_type） |
+| `/api/bots/{id}/state` | GET | 获取 Bot 当前锁定状态 |
+| `/api/bots/{id}/occupancy?date=YYYY-MM-DD` | GET | 获取 Bot 某天历史占用记录 |
+
+Bot 类型：
+- **NODE** — 整机锁定，state 格式 `{节点名: {status, current_users}}`
+- **DEVICE** — 单卡锁定，state 格式 `{节点名: [{dev_id, status, current_users}]}`
+- **QUEUE** — 整机 + 排队（当前未开通）
+
+Occupancy API 返回格式：`[{node_key, user_id, start_time, end_time, duration_seconds}]`，时间字段为 ISO 字符串。
+
+### Monquery（监控 3.0）
+
+| 项目 | 值 |
+|------|-----|
+| 地址 | `http://api.mt.noah.baidu.com:8557` |
+| 鉴权 | 无需（内网直接访问） |
+
+| 接口 | 方法 | 用途 |
+|------|------|------|
+| `/monquery/getHistoryitemdata` | GET | 批量获取历史监控数据 |
+| `/monquery/getItemList` | GET | 获取可用指标列表 |
+
+查询参数：
+- `namespaces` — 节点命名空间（逗号分隔，不支持通配符）
+- `items` — 指标名（逗号分隔）
+- `start` / `end` — 时间范围 `YYYYMMDDHHmmss`
+- `interval` — 采样间隔（秒，当前 300 = 5 分钟）
+
+单节点查询 17 个指标：`XPU_AVERAGE_UTILIZATION` + 8×`XPU{c}_XPU_UTILIZATION` + 8×`XPU{c}_MEM_UTILIZATION`。
+
+## 关键逻辑
+
+### 时间槽计算
+```js
+// Unix 秒 → 北京时间 5 分钟槽索引
+toSlotIndex(ts) = Math.floor(((ts + 28800) % 86400) / 300)
+// +28800 = UTC+8 偏移，% 86400 = 当天秒数，/ 300 = 5 分钟槽
+```
+
+`parseSlotFromTimestamp()` 统一处理三种时间格式：
+- Unix 秒（≤ 1e12）
+- Unix 毫秒（> 1e12，自动 `/1000`）
+- ISO 字符串（`new Date(str).getTime() / 1000`）
+
+### 节点状态判定
+```js
+// 双阈值：XPU 或显存任一 ≥ 10% → BUSY
+status = (currentMemUtil >= 10 || currentUtil >= 10) ? 'BUSY' : 'FREE'
+```
+
+### 多 Bot 合并策略
+- 登录后拉取用户所有 Bot
+- 同一节点出现在多个 Bot → **先到先得**（不再 DEVICE 优先）
+- botType 跟随先命中的 Bot 类型
+- 合并后排序：node 在前 bdc 在后，各自按 ID 升序
+
+### 两阶段渲染
+```
+loadAllData():
+  1. Promise.all([所有 Bot 状态, 所有 Bot 历史占用]) → 秒出
+  2. adaptAndRender(stateResults, null, status, occupancyHistory)
+     → Lock Bot 先行渲染（节点名、占用红条即时可见，利用率显示 --）
+  3. await fetchMonqueryUtilization(start, end) → 可能 10-30s
+  4. adaptAndRender(stateResults, monqueryData, status, occupancyHistory)
+     → 补上利用率 + 显存数据
+```
+
+### 占用数据合并
+- 当前活跃锁（来自 state API）+ 当天历史锁（来自 occupancy API）
+- 按 `start,end,user` 三元组去重
+- DEVICE 类型：节点级占用由 8 卡占用范围合并推导（最左到最右）
+- NODE 类型：当前锁 + 历史锁均写入所有 8 卡
+
+### 显存推导占用
+```js
+deriveMemOccupations(memUtil288):
+  逐槽扫描，显存 ≥ 10% 视为占用，连续占用槽合并为一条记录
+  用于在无 Lock Bot 锁时推断实际使用情况
+```
+
+## 部署
+
+### 新环境快速部署
 
 ```bash
-export JWT_SECRET="your-jwt-secret"
-export ENCRYPTION_KEY="your-fernet-key"    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-export DEV_MODE="true"                      # dev mode, auto-create admin user
+cd /home/users/v_qiujie04/monitor
+bash deploy.sh                # 自动检查环境 + 复制配置 + 启动
 ```
 
-3. Start:
+首次部署从 `config.example.json` 自动创建 `config.json`。
+
+### 环境变量覆盖
+
+不修改 `config.json` 也可通过环境变量覆盖后端地址：
+
+| 变量 | 对应配置 | 默认值 |
+|------|---------|--------|
+| `PROXY_PORT` | 代理监听端口 | 8900 |
+| `LOCKBOT_HOST` | Lock Bot 服务 IP | 10.206.192.17 |
+| `LOCKBOT_PORT` | Lock Bot 服务端口 | 8875 |
+| `MONQUERY_HOST` | Monquery 服务 IP | api.mt.noah.baidu.com |
+| `MONQUERY_PORT` | Monquery 服务端口 | 8557 |
 
 ```bash
-# Backend
-uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Frontend (another terminal)
-cd frontend && npm install && npm run dev
+LOCKBOT_HOST=192.168.1.100 LOCKBOT_PORT=8155 bash deploy.sh
 ```
 
-4. Open `http://localhost:8000` in your browser.
+### 进程守护
 
-### Docker
+**PM2**：
+```bash
+pm2 start pm2.config.cjs
+pm2 save
+```
+
+**systemd**：
+```bash
+sudo cp xpu-monitor.service /etc/systemd/system/
+sudo systemctl enable --now xpu-monitor
+```
+
+### 手动启动
 
 ```bash
-# 1. Generate ENCRYPTION_KEY and JWT_SECRET
-python tools/gen_keys.py
-
-# 2. Pull pre-built image (or build from source)
-docker pull ghcr.io/dynamicheart/lockbot:latest
-# docker build -f docker/Dockerfile -t lockbot .
-
-# 3. Run (replace the keys with generated values)
-docker run -d --name lockbot -p 8000:8000 \
-  -e JWT_SECRET=your-secret \
-  -e ENCRYPTION_KEY=your-fernet-key \
-  -v lockbot-data:/data \
-  ghcr.io/dynamicheart/lockbot:latest
-
-# 4. Create super_admin (password auto-generated and printed)
-docker exec -it lockbot python tools/create_super_admin.py --username admin --email admin@example.com
+node proxy.js                    # 前台运行
+nohup node proxy.js > /tmp/proxy.log 2>&1 &   # 后台运行
 ```
 
-> **Data persistence**: All data (SQLite DB, bot state files) stored under `/data`. Override with `DATA_DIR` env var.
+## 开发调试
 
-## Bot Configuration
-
-| Key | Description | Default |
-|---|---|---|
-| `BOT_TYPE` | `DEVICE`, `NODE`, or `QUEUE` | (required) |
-| `BOT_NAME` | Bot instance name | `demo_bot` |
-| `CLUSTER_CONFIGS` | Cluster layout (dict or list) | `{}` |
-| `TOKEN` | Bot signature verification token | `""` |
-| `AESKEY` | Message decryption AES key | `""` |
-| `WEBHOOK_URL` | Message webhook URL | `""` |
-| `PORT` | Server listen port | `8090` |
-| `DEFAULT_DURATION` | Default lock duration (seconds) | `7200` (2h) |
-| `MAX_LOCK_DURATION` | Max lock duration (seconds) | `-1` (unlimited) |
-| `EARLY_NOTIFY` | Notify before lock expiry | `false` |
-
-See `python/lockbot/core/config.py` for the full configuration reference.
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `lock <node> [duration]` | Exclusive lock (e.g., `lock gpu0 3d`, `lock node1 30m`) |
-| `slock <node> [duration]` | Shared lock (multiple users) |
-| `unlock <node>` / `free <node>` | Release a specific node |
-| `unlock` / `free` | Release all your nodes |
-| `kickout <node>` | Force release (admin) |
-| `book <node> [duration]` | Queue: book a node for later |
-| `take <node>` | Queue: take the current lock |
-| `<node>` | Query current usage |
-| `help` | Show usage |
-
-## Development
+### 本地开发
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Lint + format check
-ruff check python/ tests/
-ruff format --check python/ tests/
+cd /home/users/v_qiujie04/monitor
+node proxy.js                    # 启动代理
+# 修改 demo.html / api.js / adapter.js 后，pkill -f proxy.js 再重新启动
+# 或者用 xpu-monitor-restart skill 一键重启 + 验证
 ```
 
-## Standalone Mode
+### 诊断 API 连通性
 
-Single-bot deployment with a lightweight Flask webhook server.
+```bash
+# Monquery 单节点查询
+curl -s "http://localhost:8900/monquery/monquery/getHistoryitemdata?namespaces=wxtky02-p800-backup-8nic-vd-node1.wxtky02&items=XPU_AVERAGE_UTILIZATION&start=20260624000000&end=20260624170000&interval=300"
 
-**Device Lock Bot** (per-GPU locking):
+# Lock Bot 登录测试（需真实账号）
+curl -s -X POST http://localhost:8900/lockbot/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"YOUR_USER","password":"YOUR_PASS"}'
 
-```python
-from lockbot.core.bot_instance import BotInstance
-from lockbot.core.entry import create_app
-
-instance = BotInstance("DEVICE", {
-    "BOT_NAME": "my-gpu-bot",
-    "WEBHOOK_URL": "https://your-webhook-url",
-    "TOKEN": "your-bot-token",
-    "AESKEY": "your-aes-key",
-    "CLUSTER_CONFIGS": {
-        "node0": ["A800", "A800", "H100"],
-        "node1": ["A800", "H100"],
-    },
-})
-
-app = create_app(bot=instance.bot, bot_name="my-gpu-bot", port=8000)
-app.run(host="0.0.0.0", port=8000)
+# Lock Bot 历史占用查询
+curl -s -H 'Authorization: Bearer TOKEN' \
+  "http://localhost:8900/lockbot/api/bots/1/occupancy?date=$(date +%Y-%m-%d)"
 ```
 
-**Node Lock Bot / Queue Bot** (per-node locking or queue scheduling):
+### 查看完整指标列表
 
-```python
-from lockbot.core.bot_instance import BotInstance
-from lockbot.core.entry import create_app
-
-instance = BotInstance("NODE", {       # or "QUEUE" for queue scheduling
-    "BOT_NAME": "my-node-bot",
-    "WEBHOOK_URL": "https://your-webhook-url",
-    "TOKEN": "your-bot-token",
-    "AESKEY": "your-aes-key",
-    "CLUSTER_CONFIGS": ["node0", "node1", "node2", "node3"],
-})
-
-app = create_app(bot=instance.bot, bot_name="my-node-bot", port=8000)
-app.run(host="0.0.0.0", port=8000)
+```bash
+curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-p800-backup-8nic-vd-node1.wxtky02" | python3 -m json.tool
 ```
 
-## License
+### 新增节点
 
-MIT
+编辑 `api.js` 的 `MONITORED_NODES` 数组，将新节点编号加入（当前排除 `[13, 14, 17, 33, 36]`），重启代理生效。
+
+### 调整监控粒度
+
+修改 `api.js` 中 `interval` 参数（当前 300 秒）。同步更新 `adapter.js` 的 `SLOT_COUNT` 和 `toSlotIndex` 除数。
+
+## 注意事项
+
+1. **CORS**：Lock Bot 和 Monquery 均不支持跨域，必须通过本地代理访问
+2. **节点硬编码**：Monquery 不支持 namespace 通配符，`MONITORED_NODES` 需手动维护。当前 44 个 node（排除 13/14/17/33/36）+ 3 个 bdc
+3. **bdc 节点**：仅通过 Lock Bot 展示占用情况，`hasMonqueryData = false`，利用率显示 `--`，无折线图
+4. **多 Bot 合并**：同节点出现在多个 Bot 中时先到先得，不再区分类型优先级
+5. **两阶段渲染**：首次加载先出 Lock Bot 数据（1-3 秒），Monquery 到后补全利用率（10-30 秒），避免白屏等待
+6. **Now Line 独立定时器**：红色时间线每分钟自动推进，与数据刷新（60s）解耦但同频
+7. **Canvas 快照**：渲染后捕获快照，hover 时快照恢复 + 增量画点，避免全路径重绘
+8. **Token 持久化**：登录成功存 localStorage（4 小时过期），页面加载时自动恢复；退出登录时清除
+9. **代理验证**：`http_proxy` 环境变量会劫持 localhost 请求，验证时必须 `curl --noproxy '*'`
+10. **日期格式**：occupancy API 的 `date` 参数使用**本地日期**（`YYYY-MM-DD`），不是 UTC 日期

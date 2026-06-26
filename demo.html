@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开发机集群资源监控</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #eef1f6; color: #1e293b; padding: 20px; }
+h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
+
+/* Login */
+.login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
+.login-card { background: #fff; border-radius: 12px; padding: 32px 28px; width: 340px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04); }
+.login-card h2 { font-size: 17px; margin-bottom: 20px; text-align: center; color: #64748b; }
+.login-card input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; transition: border-color .2s; }
+.login-card input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+.login-card button { width: 100%; padding: 10px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; transition: background .2s; }
+.login-card button:hover { background: #4338ca; }
+.login-card button:disabled { background: #a5b4fc; cursor: not-allowed; }
+.login-error { color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; }
+.login-hint { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px; }
+
+/* Stats */
+.stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
+.stat-card { background: #fff; border-radius: 10px; padding: 14px 18px; flex: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03); position: relative; overflow: hidden; }
+.stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.stat-card.total::before { background: #4f46e5; }
+.stat-card.free::before { background: #16a34a; }
+.stat-card.busy::before { background: #dc2626; }
+.stat-card .label { font-size: 11px; color: #64748b; margin-bottom: 4px; letter-spacing: .3px; }
+.stat-card .value { font-size: 26px; font-weight: 700; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.stat-card .value.total { color: #4f46e5; }
+.stat-card .value.free { color: #16a34a; }
+.stat-card .value.busy { color: #dc2626; }
+
+/* Filters */
+.filters { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.filters label { font-size: 12px; color: #94a3b8; font-weight: 500; }
+.search-input { width: 150px; padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; outline: none; }
+.search-input:focus { border-color: #4f46e5; }
+.status-btn { padding: 3px 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 12px; cursor: pointer; background: #fff; color: #64748b; transition: all .15s; user-select: none; }
+.status-btn:hover { border-color: #cbd5e1; }
+.status-btn.active { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; font-weight: 500; }
+
+/* Nodes */
+.node-row { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.03), 0 2px 6px rgba(0,0,0,.02); transition: box-shadow .2s; }
+.node-row:hover { box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06); }
+.node-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.node-name { font-weight: 600; font-size: 15px; min-width: 80px; color: #1e293b; }
+	.expand-toggle { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #e2e8f0; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; font-size: 12px; color: #94a3b8; cursor: pointer; user-select: none; margin-left: 4px; transition: all .2s; line-height: 1; }
+	.expand-toggle:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
+	.type-tag { font-size: 9px; font-weight: 600; letter-spacing: .5px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+	.type-tag-DEVICE { background: #eef2ff; color: #4f46e5; }
+	.type-tag-NODE { background: #f1f5f9; color: #64748b; }
+.node-stats { font-size: 12px; color: #64748b; margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.node-stats .util-value { font-weight: 700; font-size: 14px; margin-left: 4px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.node-stats .util-value.high { color: #dc2626; }
+.node-stats .util-value.mid { color: #d97706; }
+.node-stats .util-value.low { color: #16a34a; }
+.node-stats .util-value.nodata { color: #94a3b8; font-weight: 400; font-size: 12px; font-family: inherit; }
+.badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge-FREE { background: #dcfce7; color: #16a34a; }
+.badge-PARTIAL { background: #fef3c7; color: #d97706; }
+.badge-BUSY { background: #fee2e2; color: #dc2626; }
+.timeline-container { position: relative; height: 40px; background: #f8fafc; border-radius: 6px; overflow: visible; border: 1px solid #e2e8f0; }
+.time-labels { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 2px; padding: 0 2px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.occupy-block { position: absolute; top: 0; height: 100%; background: rgba(220, 38, 38, .15); border-left: 1px solid rgba(220,38,38,.3); border-right: 1px solid rgba(220,38,38,.3); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.occupy-block .occupy-user { font-size: 10px; color: #b91c1c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.occupy-block:hover { background: rgba(220, 38, 38, .28); }
+.tooltip { position: absolute; background: #1e293b; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; white-space: nowrap; z-index: 100; display: none; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.util-line { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+/* Status bar */
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 14px; border-radius: 8px; font-size: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.status-bar.caution { background: #fffbeb; border-color: #fde68a; }
+.status-bar.error { background: #fef2f2; border-color: #fecaca; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; flex-shrink: 0; animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.status-bar.caution .status-dot { background: #d97706; }
+.status-bar.error .status-dot { background: #dc2626; }
+.status-text { color: #475569; }
+.status-timestamp { color: #94a3b8; font-size: 11px; margin-left: auto; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.status-retry { cursor: pointer; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 10px; font-size: 11px; background: #fff; color: #64748b; transition: all .15s; }
+.status-retry:hover { border-color: #4f46e5; color: #4f46e5; }
+
+/* Toast */
+.toast { position: fixed; top: 16px; right: 16px; background: #1e293b; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.toast.show { opacity: 1; }
+
+/* Error Overlay */
+.error-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.error-overlay.hidden { display: none; }
+.error-card { background: #fff; border-radius: 14px; padding: 40px 32px; width: 420px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.15); }
+.error-card .error-icon { font-size: 44px; margin-bottom: 16px; }
+.error-card .error-title { font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+.error-card .error-detail { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 20px; }
+.error-card .error-meta { font-size: 11px; color: #94a3b8; margin-bottom: 18px; }
+.error-card .error-meta span { margin: 0 8px; }
+.error-card .error-actions { display: flex; gap: 10px; justify-content: center; }
+.error-card .error-actions button { padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s; }
+.error-card .error-actions button.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.error-card .error-actions button.primary:hover { background: #4338ca; }
+.error-card .error-actions button:not(.primary):hover { border-color: #4f46e5; color: #4f46e5; }
+
+/* Badge: NODATA */
+.badge-NODATA { background: #f1f5f9; color: #94a3b8; }
+
+/* 异常标记：锁与显存不一致 */
+.badge-warn-anon { background: #fef3c7; color: #d97706; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
+.badge-warn-zombie { background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
+
+/* DEVICE 节点内联卡片 */
+.card-row { padding: 4px 10px; font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 12px; border-top: 1px solid #f1f5f9; }
+.card-row .card-name { min-width: 44px; font-weight: 500; }
+.card-row .card-val { font-size: 11px; min-width: 44px; text-align: right; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.card-row .card-lock { font-size: 10px; color: #b91c1c; }
+.card-timeline { padding: 0 10px 2px 56px; position: relative; }
+.card-timeline .timeline-container { height: 24px; }
+
+.legend { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-line { width: 20px; height: 2px; }
+
+/* Now line - global */
+#node-list { position: relative; }
+.global-now-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(220, 38, 38, .35); z-index: 20; pointer-events: none; }
+.global-now-label { position: absolute; top: -15px; transform: translateX(-50%); font-size: 10px; color: rgba(220, 38, 38, .6); white-space: nowrap; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; font-weight: 500; }
+
+
+</style>
+</head>
+<body>
+
+<!-- ====== Login Form ====== -->
+<div id="login-form" class="login-container">
+  <h1>开发机集群资源监控</h1>
+  <div class="login-card">
+    <h2>Lock Bot 登录</h2>
+    <input id="login-username" type="text" placeholder="用户名" autocomplete="username">
+    <input id="login-password" type="password" placeholder="密码" autocomplete="current-password">
+    <button id="login-btn">登 录</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-hint">登录后自动接入 Lock Bot + 监控数据</div>
+  </div>
+</div>
+
+<!-- ====== Dashboard ====== -->
+<div id="dashboard" style="display:none">
+  <h1>开发机集群资源监控</h1>
+  <div class="stats-bar" id="stats-bar"></div>
+  <div class="status-bar" id="status-bar" style="display:none"></div>
+  <div class="filters">
+    <label>类型：</label>
+    <span class="status-btn active" data-type="ALL">全部</span>
+    <span class="status-btn" data-type="NODE">NODES</span>
+    <span class="status-btn" data-type="DEVICE">DEVICES</span>
+    <span style="margin:0 8px;color:#ddd;">|</span>
+    <label>状态：</label>
+    <span class="status-btn active" data-status="ALL">全部</span>
+    <span class="status-btn" data-status="FREE">FREE</span>
+    <span class="status-btn" data-status="BUSY">BUSY</span>
+    <input class="search-input" id="search" placeholder="搜索节点...">
+    <label>排序：</label>
+    <span class="status-btn" data-sort="util-desc">XPU利用率 ↓</span>
+    <span class="status-btn" data-sort="mem-desc">显存 ↓</span>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-line" style="background:#4f46e5"></span><span>平均 XPU 使用率</span></div>
+
+    <div class="legend-item"><span class="legend-line" style="background:#ea580c"></span><span>显存利用率</span></div>
+    <div class="legend-item"><span class="legend-line" style="background:rgba(220,38,38,.2)"></span><span>Lock Bot 锁记录</span></div>
+    <div class="legend-item"><span style="width:1px;height:14px;background:#dc2626;display:inline-block;"></span><span>当前时间</span></div>
+  </div>
+  <div id="node-list" style="position:relative;padding-top:18px;"></div>
+</div>
+
+<!-- ====== Error Overlay ====== -->
+<div class="error-overlay hidden" id="error-overlay">
+  <div class="error-card">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">数据加载失败</div>
+    <div class="error-detail" id="error-detail">Lock Bot 和监控数据均无法获取<br>请检查网络连接或联系管理员</div>
+    <div class="error-meta" id="error-meta"></div>
+    <div class="error-actions">
+      <button class="primary" id="error-retry-btn">&#x21bb; 重新加载</button>
+      <button id="error-logout-btn">返回登录</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { loginLockBot, fetchLockBotList, fetchLockBotState, fetchLockBotOccupancy, fetchMonqueryUtilization, isAbortError } from './api.js';
+import { adaptNodeData } from './adapter.js';
+
+const SLOT_COUNT = 288; // 24h / 5min = 288 槽
+const tooltip = document.getElementById('tooltip');
+
+const now = new Date();
+let nowIdx = now.getHours() * 12 + Math.floor(now.getMinutes() / 5);
+
+let nodes = [];
+let activeType = 'ALL';
+let activeStatus = 'ALL';
+let activeSort = '';
+let token = null;
+const expandedNodes = new Set(); // NODE 类型展开的节点名
+let refreshTimer = null;
+let allBots = [];
+let consecutiveFailures = 0;
+let lastSuccessTime = null;
+
+// ---- 工具函数 ----
+
+function formatDateStart(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}${m}${day}000000`;
+}
+
+function formatDateTime(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}${m}${day}${h}${min}${s}`;
+}
+
+// ---- 登录逻辑 ----
+
+// Token 持久化
+const SESSION_KEY = 'xpu_monitor_session';
+function saveSession() {
+  try {
+    const username = document.getElementById('login-username').value.trim();
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, username, savedAt: Date.now() }));
+  } catch (e) { /* localStorage 不可用则跳过 */ }
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+}
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (Date.now() - data.savedAt > 4 * 3600 * 1000) { clearSession(); return null; } // 4 小时过期
+    return data;
+  } catch (e) { clearSession(); return null; }
+}
+
+async function handleLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const loginBtn = document.getElementById('login-btn');
+  const errorEl = document.getElementById('login-error');
+
+  if (!username || !password) {
+    errorEl.textContent = '请输入用户名和密码';
+    return;
+  }
+
+  loginBtn.disabled = true;
+  errorEl.textContent = '';
+
+  try {
+    token = await loginLockBot(username, password);
+    const bots = await fetchLockBotList(token);
+
+    if (!bots || !bots.length) throw new Error('无可用 Bot，请先创建');
+
+    allBots = bots;
+    saveSession();
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    // 首次加载
+    const status = await loadAllData();
+    renderStatusBar(status);
+
+    // 定时器
+    startAutoRefresh();
+    startNowLineTimer();
+  } catch (err) {
+    // 认证成功但数据拉取失败 → 仍然进入仪表盘，显示错误状态
+    if (token) {
+      saveSession();
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      renderStatusBar({
+        lockBot: { ok: false, failedBotIds: [0], totalBots: 0 },
+        monquery: { ok: false, errorMessage: err.message },
+        nodeDataQuality: {},
+        lastUpdated: Date.now(),
+      });
+      startAutoRefresh();
+      startNowLineTimer();
+      return;
+    }
+    // 认证失败 → 留在登录页
+    clearSession();
+    loginBtn.disabled = false;
+    errorEl.textContent = `登录失败：${err.message}`;
+  }
+}
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const status = await loadAllData();
+      renderStatusBar(status);
+    } catch (e) {
+      if (!isAbortError(e)) {
+        console.error('Auto-refresh failed:', e);
+        showToast('数据刷新失败：' + e.message, 5000);
+      }
+    }
+  }, 60000);
+}
+
+// ---- Now Line 动态更新 ----
+
+let nowLineTimer = null;
+
+function startNowLineTimer() {
+  if (nowLineTimer) clearInterval(nowLineTimer);
+  nowLineTimer = setInterval(() => {
+    updateNowIdx();
+  }, 60000);
+}
+
+function updateNowIdx() {
+  const prevIdx = nowIdx;
+  nowIdx = calcNowIdx();
+
+  // 如果跨了 5 分钟槽，更新 currentUtil
+  if (nowIdx !== prevIdx) {
+    for (const node of nodes) {
+      node.currentUtil = node.avgUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
+      node.currentMemUtil = node.avgMemUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
+    }
+    renderStats();
+  }
+
+  repositionNowLine();
+}
+
+function calcNowIdx() {
+  const d = new Date();
+  return d.getHours() * 12 + Math.floor(d.getMinutes() / 5);
+}
+
+function repositionNowLine() {
+  const container = document.getElementById('node-list');
+  const line = container.querySelector('.global-now-line');
+  if (!line) return;
+  const firstTimeline = container.querySelector('.timeline-container');
+  if (!firstTimeline) return;
+  const containerRect = container.getBoundingClientRect();
+  const timelineRect = firstTimeline.getBoundingClientRect();
+  const offsetLeft = timelineRect.left - containerRect.left;
+  const timelineWidth = timelineRect.width;
+  const lineLeft = offsetLeft + (nowIdx / SLOT_COUNT) * timelineWidth;
+  const timeH = Math.floor(nowIdx / 12);
+  const timeM = (nowIdx % 12) * 5;
+  const timeStr = `${timeH}:${String(timeM).padStart(2, '0')}`;
+  line.style.left = lineLeft + 'px';
+  const label = line.querySelector('.global-now-label');
+  if (label) label.textContent = timeStr;
+}
+
+async function loadAllData() {
+  const status = {
+    lockBot: { ok: true, failedBotIds: [], totalBots: allBots.length },
+    monquery: { ok: true, errorMessage: '' },
+    nodeDataQuality: {},
+    lastUpdated: Date.now(),
+  };
+
+  const now = new Date();
+  const start = formatDateStart(now);
+  const end = formatDateTime(now);
+
+  // 1. 拉取 Lock Bot 状态 + 历史占用记录（并行，都很快）
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const [stateResults, occupancyResults] = await Promise.all([
+    Promise.all(
+      allBots.map(bot =>
+        fetchLockBotState(bot.id, token)
+          .then(state => ({ state, botType: bot.bot_type }))
+          .catch(err => {
+            console.error(`Bot ${bot.id} fetch failed:`, err);
+            status.lockBot.failedBotIds.push(bot.id);
+            return null;
+          })
+      )
+    ),
+    Promise.all(
+      allBots.map(bot =>
+        fetchLockBotOccupancy(bot.id, today, token).catch(() => [])
+      )
+    ),
+  ]);
+  if (status.lockBot.failedBotIds.length === status.lockBot.totalBots) {
+    status.lockBot.ok = false;
+  }
+  // 合并所有 bot 的历史占用记录
+  const occupancyHistory = occupancyResults.flat();
+
+  // 2. 更新当前时间槽 + 先用 Lock Bot 数据渲染（仅首次加载，避免自动刷新时闪烁）
+  nowIdx = calcNowIdx();
+  const hasExistingData = nodes.length > 0 && nodes.some(n => n.hasMonqueryData !== false);
+  if (!hasExistingData) {
+    adaptAndRender(stateResults, null, status, occupancyHistory);
+  }
+
+  // 3. 拉取 Monquery 数据（慢，5 分钟粒度 ~5MB，可能 10-30 秒）
+  let monqueryData = null;
+  try {
+    monqueryData = await fetchMonqueryUtilization(start, end);
+  } catch (err) {
+    status.monquery.ok = false;
+    status.monquery.errorMessage = err.message;
+    console.error('Monquery fetch failed:', err);
+  }
+
+  // 4. Monquery 数据到达后再渲染一次（补上利用率）
+  if (monqueryData) {
+    status.monquery.ok = true;
+    adaptAndRender(stateResults, monqueryData, status, occupancyHistory);
+  }
+
+  status.lastUpdated = Date.now();
+
+  // 5. 错误覆盖层逻辑：双 API 均失败时计数，连续 3 次以上且有存量数据则弹出
+  const bothFailed = !status.lockBot.ok && !status.monquery.ok;
+  if (bothFailed) {
+    consecutiveFailures++;
+  } else {
+    if (consecutiveFailures > 0) {
+      consecutiveFailures = 0;
+      hideErrorOverlay();
+    }
+    lastSuccessTime = Date.now();
+  }
+
+  if (consecutiveFailures >= 3 && nodes.length > 0) {
+    showErrorOverlay(status);
+  }
+
+  return status;
+}
+
+/**
+ * 合并 Lock Bot 状态 + 可选 Monquery 数据，适配后渲染
+ * @param {Array}  stateResults  - Promise.all 返回的 bot 状态数组
+ * @param {Array|null} monqueryData - Monquery 数据（null 表示还没拿到）
+ * @param {object} status - ApiStatus 对象（in/out）
+ */
+function adaptAndRender(stateResults, monqueryData, status, occupancyHistory = []) {
+  // 合并：同一节点出现在多个 bot 中时，先到先得
+  const mergedState = {};
+  const nodeBotTypes = {};
+  for (const result of stateResults) {
+    if (!result) continue;
+    for (const [nodeName, nodeData] of Object.entries(result.state)) {
+      if (!mergedState[nodeName]) {
+        mergedState[nodeName] = nodeData;
+        nodeBotTypes[nodeName] = result.botType;
+      }
+    }
+  }
+
+  const deviceState = {}, nodeState = {};
+  for (const [name, data] of Object.entries(mergedState)) {
+    if (nodeBotTypes[name] === 'DEVICE') deviceState[name] = data;
+    else nodeState[name] = data;
+  }
+
+  let allNodes = [];
+  if (Object.keys(deviceState).length) {
+    allNodes.push(...adaptNodeData(deviceState, monqueryData, nowIdx, 'DEVICE', occupancyHistory));
+  }
+  if (Object.keys(nodeState).length) {
+    allNodes.push(...adaptNodeData(nodeState, monqueryData, nowIdx, 'NODE', occupancyHistory));
+  }
+
+  if (allNodes.length > 0) {
+    nodes = allNodes.sort((a, b) => {
+      const parse = name => {
+        if (name.startsWith('bdc')) return { prefix: 'bdc', id: parseInt(name.slice(3), 10) };
+        return { prefix: 'node', id: parseInt(name.slice(4), 10) };
+      };
+      const va = parse(a.name), vb = parse(b.name);
+      if (va.prefix !== vb.prefix) return va.prefix === 'node' ? -1 : 1;
+      return va.id - vb.id;
+    });
+  }
+
+  for (const node of nodes) {
+    status.nodeDataQuality[node.name] = node.hasMonqueryData;
+  }
+
+  renderStats();
+  renderList();
+}
+
+document.getElementById('login-btn').addEventListener('click', handleLogin);
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleLogin();
+});
+
+// 错误覆盖层按钮
+document.getElementById('error-retry-btn').addEventListener('click', () => {
+  hideErrorOverlay();
+  consecutiveFailures = 0;
+  loadAllData().then(status => renderStatusBar(status));
+});
+document.getElementById('error-logout-btn').addEventListener('click', () => {
+  hideErrorOverlay();
+  consecutiveFailures = 0;
+  clearSession();
+  token = null;
+  nodes = [];
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (nowLineTimer) { clearInterval(nowLineTimer); nowLineTimer = null; }
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('login-form').style.display = 'flex';
+  document.getElementById('status-bar').style.display = 'none';
+});
+
+// ---- 页面加载时自动恢复会话 ----
+(async function autoRestore() {
+  const saved = restoreSession();
+  if (!saved || !saved.token) return;
+  console.log('Restoring session…');
+  document.getElementById('login-username').value = saved.username || '';
+
+  try {
+    token = saved.token;
+    const bots = await fetchLockBotList(token);
+    if (!bots || !bots.length) { clearSession(); return; }
+    allBots = bots;
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    const status = await loadAllData();
+    renderStatusBar(status);
+    startAutoRefresh();
+    startNowLineTimer();
+  } catch (e) {
+    console.error('Session restore failed:', e);
+    clearSession();
+    token = null;
+  }
+})();
+
+// ---- 统计卡片 ----
+
+function renderStats() {
+  const free = nodes.filter(n => n.status === 'FREE').length;
+  const busy = nodes.filter(n => n.status === 'BUSY').length;
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat-card total"><div class="label">总节点</div><div class="value total">${nodes.length}</div></div>
+    <div class="stat-card free"><div class="label">空闲</div><div class="value free">${free}</div></div>
+    <div class="stat-card busy"><div class="label">占用</div><div class="value busy">${busy}</div></div>
+  `;
+}
+
+// ---- 状态栏 ----
+
+function renderStatusBar(status) {
+  const bar = document.getElementById('status-bar');
+  const hasLockBot = status.lockBot.ok;
+  const hasMonquery = status.monquery.ok;
+  const timeStr = new Date(status.lastUpdated).toLocaleTimeString('zh-CN');
+
+  let cls = '', dotColor = '', text = '';
+  if (!hasLockBot) {
+    cls = 'error';
+    text = '所有 Bot 离线，占用数据不可用';
+  } else if (!hasMonquery) {
+    cls = 'caution';
+    text = '监控数据获取失败，仅显示 Lock Bot 占用状态';
+  } else {
+    text = '数据正常';
+  }
+
+  bar.className = 'status-bar' + (cls ? ' ' + cls : '');
+  bar.innerHTML = `
+    <span class="status-dot"></span>
+    <span class="status-text">${text}</span>
+    <span class="status-timestamp">更新于 ${timeStr}</span>
+    <button class="status-retry" title="手动刷新" onclick="location.reload()">&#x21bb; 刷新</button>
+  `;
+  bar.style.display = 'flex';
+}
+
+function showToast(message, duration = 5000) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ---- 错误覆盖层 ----
+
+function showErrorOverlay(status) {
+  const overlay = document.getElementById('error-overlay');
+  const detail = document.getElementById('error-detail');
+  const meta = document.getElementById('error-meta');
+
+  let detailText = '';
+  if (!status.lockBot.ok && !status.monquery.ok) {
+    detailText = 'Lock Bot 和监控数据均无法获取<br>请检查网络连接或联系管理员';
+  } else if (!status.lockBot.ok) {
+    detailText = '所有 Lock Bot 离线<br>占用数据不可用';
+  } else if (!status.monquery.ok) {
+    detailText = '监控数据获取失败<br>利用率数据暂不可用';
+  }
+
+  const parts = [];
+  if (lastSuccessTime) {
+    parts.push(`上次成功：${new Date(lastSuccessTime).toLocaleTimeString('zh-CN')}`);
+  }
+  parts.push(`连续失败 ${consecutiveFailures} 次`);
+  meta.textContent = parts.join(' · ');
+
+  detail.innerHTML = detailText;
+  overlay.classList.remove('hidden');
+}
+
+function hideErrorOverlay() {
+  document.getElementById('error-overlay').classList.add('hidden');
+}
+
+// ---- 过滤与排序 ----
+
+document.querySelectorAll('.status-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.type !== undefined) {
+      // 类型筛选按钮
+      document.querySelectorAll('.status-btn[data-type]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeType = btn.dataset.type;
+      renderList();
+    } else if (btn.dataset.status !== undefined) {
+      // 状态筛选按钮
+      document.querySelectorAll('.status-btn[data-status]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.status;
+      renderList();
+    } else if (btn.dataset.sort !== undefined) {
+      // 排序按钮
+      if (activeSort === btn.dataset.sort) {
+        activeSort = '';
+        btn.classList.remove('active');
+      } else {
+        activeSort = btn.dataset.sort;
+        document.querySelectorAll('.status-btn[data-sort]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      renderList();
+    }
+  });
+});
+
+document.getElementById('search').addEventListener('input', renderList);
+
+// NODE 节点展开/收起事件委托
+document.getElementById('node-list').addEventListener('click', e => {
+  const toggle = e.target.closest('.expand-toggle');
+  if (!toggle) return;
+  const nodeName = toggle.dataset.node;
+  if (expandedNodes.has(nodeName)) {
+    expandedNodes.delete(nodeName);
+  } else {
+    expandedNodes.add(nodeName);
+  }
+  const scrollY = window.scrollY;
+  renderList();
+  window.scrollTo({ top: scrollY, behavior: 'instant' });
+});
+
+function getFiltered() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let f = nodes.filter(n => {
+    if (activeType !== 'ALL' && n.botType !== activeType) return false;
+    if (activeStatus !== 'ALL' && n.status !== activeStatus) return false;
+    if (q && !n.name.includes(q)) return false;
+    return true;
+  });
+  if (activeSort === 'util-desc') f.sort((a, b) => b.currentUtil - a.currentUtil);
+  else if (activeSort === 'mem-desc') f.sort((a, b) => (b.avgMemUtil[nowIdx] || 0) - (a.avgMemUtil[nowIdx] || 0));
+  return f;
+}
+
+function utilClass(val, hasData) {
+  if (!hasData) return 'nodata';
+  if (val >= 50) return 'high';
+  if (val >= 20) return 'mid';
+  return 'low';
+}
+
+// ---- 节点列表渲染 ----
+
+function fmtSlotTime(slotIdx) {
+  const h = Math.floor(slotIdx / 12);
+  const m = (slotIdx % 12) * 5;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function makeOccupyBlocks(occs) {
+  return occs.map(o => {
+    const left = (o.start / SLOT_COUNT * 100).toFixed(2);
+    const width = ((o.end - o.start) / SLOT_COUNT * 100).toFixed(2);
+    const user = o.user || '';
+    return `<div class="occupy-block" style="left:${left}%;width:${width}%" data-user="${user}" data-start="${o.start}" data-end="${o.end}"><span class="occupy-user">${user}</span></div>`;
+  }).join('');
+}
+
+function renderList() {
+  const container = document.getElementById('node-list');
+  container.innerHTML = '';
+  const filtered = getFiltered();
+  filtered.forEach(node => {
+    const row = document.createElement('div');
+    const showBadge = node.hasMonqueryData !== false
+      ? `<span class="badge badge-${node.status}">${node.status}</span>`
+      : `<span class="badge badge-NODATA">无数据</span>`;
+    const hasData = node.hasMonqueryData !== false;
+    const showUtil = hasData
+      ? `<span class="util-value ${utilClass(node.currentUtil, true)}">${node.currentUtil.toFixed(2)}%</span>`
+      : `<span class="util-value nodata">--</span>`;
+    const memShow = hasData
+      ? `<span class="util-value ${utilClass(node.currentMemUtil || 0, true)}">${(node.currentMemUtil || 0).toFixed(2)}%</span>`
+      : `<span class="util-value nodata">--</span>`;
+
+    // 异常标记：显存与 Lock Bot 锁状态不一致
+    let warnBadge = '';
+    if (hasData) {
+      const locked = !!node.hasActiveLock;
+      if (node.status === 'BUSY' && !locked) {
+        warnBadge = '<span class="badge-warn-anon" title="显存占用中但无 Lock Bot 锁，疑似匿名占用">匿名占用</span>';
+      } else if (node.status === 'FREE' && locked) {
+        warnBadge = '<span class="badge-warn-zombie" title="有 Lock Bot 锁但显存未使用，疑似僵尸锁">疑似僵尸锁</span>';
+      }
+    }
+
+    row.className = 'node-row';
+    const isExpanded = expandedNodes.has(node.name);
+    const expandToggle = node.botType === 'NODE'
+      ? `<span class="expand-toggle" data-node="${node.name}">${isExpanded ? '−' : '+'}</span>`
+      : '';
+    row.innerHTML = `
+      <div class="node-header">
+        <span class="node-name">${node.name}</span><span class="type-tag type-tag-${node.botType}">${node.botType}</span>
+        ${showBadge}${warnBadge}
+        <span class="node-stats">XPU ${showUtil} <span style="margin-left:8px;">显存 ${memShow}</span></span>${expandToggle}
+      </div>
+      <div class="timeline-container">
+        ${makeOccupyBlocks(node.occupations)}
+        <canvas class="util-line" width="600" height="40"></canvas>
+      </div>
+      <div class="time-labels"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+    `;
+    container.appendChild(row);
+    drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgUtil, '#4f46e5');
+    drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgMemUtil, '#ea580c', true);
+    captureLayerSnapshot(row.querySelector('.timeline-container canvas'));
+
+    // DEVICE 节点 / 已展开的 NODE 节点：内联显示 8 卡详情
+    if (node.botType === 'DEVICE' || expandedNodes.has(node.name)) {
+      for (let c = 0; c < 8; c++) {
+        const cardRow = document.createElement('div');
+        cardRow.className = 'card-row';
+        const cu = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][nowIdx] : 0;
+        const cm = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][nowIdx] : 0;
+        const cardBusy = cm >= 10;
+        const lockMark = (node.cardOccupations && node.cardOccupations[c] && node.cardOccupations[c].length)
+          ? `<span class="card-lock" title="有 Lock Bot 锁记录">🔒</span>` : '';
+        cardRow.innerHTML = `
+          <span class="card-name">XPU #${c}</span>
+          <span class="badge badge-${cardBusy ? 'BUSY' : 'FREE'}" style="font-size:10px;padding:1px 5px;">${cardBusy ? '占用' : '空闲'}</span>
+          <span class="card-val" style="color:#4f46e5">XPU ${cu.toFixed(1)}%</span>
+          <span class="card-val" style="color:#ea580c">显存 ${cm.toFixed(1)}%</span>
+          ${lockMark}
+        `;
+        container.appendChild(cardRow);
+
+        // 卡片级折线图
+        const cardTimeline = document.createElement('div');
+        cardTimeline.className = 'card-timeline';
+        const cardOccs = (node.cardOccupations && node.cardOccupations[c]) || [];
+        const cardUtil = (node.cardUtils && node.cardUtils[c]) || new Array(SLOT_COUNT).fill(0);
+        const cardMem = (node.cardMemUtils && node.cardMemUtils[c]) || new Array(SLOT_COUNT).fill(0);
+        cardTimeline.innerHTML = `
+          <div class="timeline-container">
+            ${makeOccupyBlocks(cardOccs)}
+            <canvas class="util-line" width="400" height="24"></canvas>
+          </div>
+        `;
+        container.appendChild(cardTimeline);
+        const cardCanvas = cardTimeline.querySelector('canvas');
+        drawUtilLine(cardCanvas, cardUtil, '#4f46e5');
+        drawUtilLine(cardCanvas, cardMem, '#ea580c', true);
+        captureLayerSnapshot(cardCanvas);
+      }
+    }
+  });
+  bindTooltips();
+  bindCanvasHover();
+  addGlobalNowLine(container);
+}
+
+function addGlobalNowLine(container) {
+  const firstTimeline = container.querySelector('.timeline-container');
+  if (!firstTimeline) return;
+  const containerRect = container.getBoundingClientRect();
+  const timelineRect = firstTimeline.getBoundingClientRect();
+  const offsetLeft = timelineRect.left - containerRect.left;
+  const timelineWidth = timelineRect.width;
+  const lineLeft = offsetLeft + (nowIdx / SLOT_COUNT) * timelineWidth;
+  const timeH = Math.floor(nowIdx / 12), timeM = (nowIdx % 12) * 5;
+  const timeStr = `${timeH}:${String(timeM).padStart(2, '0')}`;
+  const line = document.createElement('div');
+  line.className = 'global-now-line';
+  line.style.left = lineLeft + 'px';
+  line.innerHTML = `<span class="global-now-label">${timeStr}</span>`;
+  container.appendChild(line);
+}
+
+/** 绘制时间轴背景微网格 — 竖向每 12 槽（1h），横向每 25% */
+function drawTimelineGrid(ctx, w, h) {
+  ctx.save();
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 0.5;
+  // 竖线 — 每 12 槽 = 1 小时
+  for (let i = 0; i <= 288; i += 12) {
+    const x = (i / 288) * w;
+    ctx.beginPath();
+    ctx.setLineDash([1, 3]);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+  }
+  // 横线 — 25% / 50% / 75%
+  for (const pct of [0.25, 0.5, 0.75]) {
+    const y = h - (pct * h);
+    ctx.beginPath();
+    ctx.setLineDash([1, 3]);
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawUtilLine(canvas, data, color, skipClear = false) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth || 600;
+  const h = canvas.parentElement.clientHeight || 40;
+  if (!skipClear) {
+    canvas.width = w; canvas.height = h;
+    canvas._layers = [];
+    canvas._snapshot = null;
+    // 绘制背景微网格（签名元素）
+    drawTimelineGrid(ctx, w, h);
+  }
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = (h - 2) - (v / 100) * (h - 4);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  // 存储多层数据供 hover 使用
+  if (!canvas._layers) canvas._layers = [];
+  canvas._layers.push({ data, color, label: color === '#ea580c' ? '显存' : 'XPU' });
+}
+
+/** 捕获当前 canvas 为快照，Hover 时避免完整重绘 */
+function captureLayerSnapshot(canvas) {
+  const img = new Image();
+  img.src = canvas.toDataURL();
+  canvas._snapshot = img;
+}
+
+/** 从快照恢复背景图层 */
+function restoreSnapshot(canvas) {
+  if (!canvas._snapshot) return drawAllLayers(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(canvas._snapshot, 0, 0);
+}
+
+function drawAllLayers(canvas) {
+  const layers = canvas._layers || [];
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  layers.forEach(layer => {
+    ctx.strokeStyle = layer.color; ctx.lineWidth = 1.5; ctx.beginPath();
+    layer.data.forEach((v, i) => {
+      const px = (i / (layer.data.length - 1)) * w;
+      const py = (h - 2) - (v / 100) * (h - 4);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+  });
+}
+
+function bindCanvasHover() {
+  document.querySelectorAll('.util-line').forEach(canvas => {
+    canvas.addEventListener('mousemove', e => {
+      const layers = canvas._layers;
+      if (!layers || !layers.length) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const dataLen = layers[0].data.length;
+      const idx = Math.round(x / rect.width * (dataLen - 1));
+      const ci = Math.max(0, Math.min(idx, dataLen - 1));
+      const w = canvas.width, h = canvas.height;
+
+      // 从快照恢复背景，无需逐路径重绘
+      restoreSnapshot(canvas);
+
+      // 在每个图层上画圆点
+      const ctx = canvas.getContext('2d');
+      layers.forEach(layer => {
+        const val = layer.data[ci];
+        const dotX = (ci / (dataLen - 1)) * w;
+        const dotY = (h - 2) - (val / 100) * (h - 4);
+        ctx.beginPath(); ctx.arc(dotX, dotY, 3, 0, Math.PI * 2); ctx.fillStyle = layer.color; ctx.fill();
+      });
+
+      // tooltip 显示所有层的值
+      const timeH = Math.floor(ci / 12), timeM = (ci % 12) * 5;
+      const vals = layers.map(l => `${l.label}: ${l.data[ci].toFixed(2)}%`).join('  |  ');
+      tooltip.textContent = `${timeH}:${String(timeM).padStart(2, '0')}  ${vals}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = e.pageX + 10 + 'px'; tooltip.style.top = e.pageY - 30 + 'px';
+    });
+    canvas.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+      if (!canvas._layers || !canvas._layers.length) return;
+      restoreSnapshot(canvas);
+    });
+  });
+}
+
+function bindTooltips() {
+  document.querySelectorAll('.occupy-block').forEach(block => {
+    block.addEventListener('mouseenter', ev => {
+      const s = parseInt(block.dataset.start, 10), end = parseInt(block.dataset.end, 10);
+      tooltip.textContent = `${block.dataset.user} (${fmtSlotTime(s)} - ${fmtSlotTime(end)})`;
+      tooltip.style.display = 'block';
+    });
+    block.addEventListener('mousemove', e => {
+      tooltip.style.left = e.pageX + 10 + 'px'; tooltip.style.top = e.pageY - 30 + 'px';
+    });
+    block.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  });
+}
+</script>
+</body>
+</html>
