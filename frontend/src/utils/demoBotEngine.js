@@ -369,7 +369,7 @@ function formatAccessMode(status, lang = 'en') {
 function nodeUsageText(state, nodeFilter, lang) {
   let text = ''
   for (const [key, node] of Object.entries(state)) {
-    if (nodeFilter && key !== nodeFilter) continue
+    if (nodeFilter && (Array.isArray(nodeFilter) ? !nodeFilter.includes(key) : key !== nodeFilter)) continue
     if (node.status === 'idle') {
       text += `${key} ${_t(lang, 'status.idle')}\n`
     } else {
@@ -652,7 +652,7 @@ function _executeNodeQueueCommand(state, userId, cmd, rest, botType, cfg, usageT
             (findUser(node.current_users, userId) && node.status === 'exclusive')
           )
         ) {
-          return showError(_t(lang, 'error.node_in_use_or_shared') + usageText())
+          return showError(_t(lang, 'error.node_in_use_or_shared') + usageText([nk]))
         }
       }
     }
@@ -749,7 +749,7 @@ function _executeNodeQueueCommand(state, userId, cmd, rest, botType, cfg, usageT
     // Pass 1: Validate
     for (const nk of uniqueKeys) {
       if (state[nk].status === 'exclusive') {
-        return showError(_t(lang, 'error.node_exclusive_mode') + usageText())
+        return showError(_t(lang, 'error.node_exclusive_mode') + usageText([nk]))
       }
     }
 

@@ -154,12 +154,18 @@ class NodeBot(BaseLockBot):
         max_dur = self.config.get_val("MAX_LOCK_DURATION")
         with self._lock:
             nodes = [self.state.bot_state[node_key] for node_key in node_keys]
-            if not all(
-                node["status"] == "idle"
-                or (find_user_info(node["current_users"], user_id) and node["status"] == "exclusive")
-                for node in nodes
-            ):
-                return self.show_error(user_id, self._msg_with_usage("error.node_in_use_or_shared"))
+            conflict_keys = [
+                nk
+                for nk, node in zip(node_keys, nodes, strict=True)
+                if not (
+                    node["status"] == "idle"
+                    or (find_user_info(node["current_users"], user_id) and node["status"] == "exclusive")
+                )
+            ]
+            if conflict_keys:
+                return self.show_error(
+                    user_id, self._msg_with_usage("error.node_in_use_or_shared", node_key=conflict_keys)
+                )
 
             timestamp = int(time.time())
 
@@ -212,8 +218,11 @@ class NodeBot(BaseLockBot):
         max_dur = self.config.get_val("MAX_LOCK_DURATION")
         with self._lock:
             nodes = [self.state.bot_state[node_key] for node_key in node_keys]
-            if not all(node["status"] != "exclusive" for node in nodes):
-                return self.show_error(user_id, self._msg_with_usage("error.node_exclusive_mode"))
+            conflict_keys = [nk for nk, node in zip(node_keys, nodes, strict=True) if node["status"] == "exclusive"]
+            if conflict_keys:
+                return self.show_error(
+                    user_id, self._msg_with_usage("error.node_exclusive_mode", node_key=conflict_keys)
+                )
 
             timestamp = int(time.time())
 
