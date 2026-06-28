@@ -203,6 +203,25 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       }
     }
 
+    // ---- 统计：真实卡数 + 每卡活跃锁状态 ----
+    const cardStates = botType === 'DEVICE' ? (Array.isArray(state) ? state : []) : [];
+    const cardCount = botType === 'DEVICE' ? (cardStates.length || CARD_COUNT) : CARD_COUNT;
+    const cardHasActiveLock = new Array(CARD_COUNT).fill(false);
+    let hasActiveLock = false;
+
+    if (botType === 'DEVICE') {
+      for (const dev of cardStates) {
+        if (dev.dev_id >= 0 && dev.dev_id < CARD_COUNT) {
+          const locked = dev.status !== 'idle' && (dev.current_users || []).length > 0;
+          cardHasActiveLock[dev.dev_id] = locked;
+          if (locked) hasActiveLock = true;
+        }
+      }
+    } else {
+      hasActiveLock = state.status !== 'idle' && (state.current_users || []).length > 0;
+      cardHasActiveLock.fill(hasActiveLock);
+    }
+
     if (botType === 'NODE' || botType === 'QUEUE') {
       // 整机粒度：所有卡共享节点级占用
       if (state.status !== 'idle') {
@@ -211,8 +230,7 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
         }
       }
     } else if (botType === 'DEVICE') {
-      // 单卡粒度
-      const cardStates = Array.isArray(state) ? state : [];
+      // 单卡粒度（cardStates 已在上面计算）
       for (let c = 0; c < CARD_COUNT; c++) {
         const dev = cardStates.find(d => d.dev_id === c);
         if (dev && dev.status !== 'idle') {
@@ -284,16 +302,6 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
     const currentMemUtil = avgMemUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
     const nodeStatus = (currentMemUtil >= 10 || currentUtil >= 10) ? 'BUSY' : 'FREE';
 
-    // ---- 检测是否有活跃的 Lock Bot 锁（非历史记录） ----
-    let hasActiveLock = false;
-    if (botType === 'DEVICE') {
-      const cardStates = Array.isArray(state) ? state : [];
-      hasActiveLock = cardStates.some(dev => dev.status !== 'idle' && (dev.current_users || []).length > 0);
-    } else {
-      // NODE or QUEUE
-      hasActiveLock = state.status !== 'idle' && (state.current_users || []).length > 0;
-    }
-
     // ---- 从显存数据推导每张卡的实际占用时段 ----
     const cardMemOccupations = Array.from({ length: CARD_COUNT }, (_, c) =>
       deriveMemOccupations(cardMemUtils[c])
@@ -314,6 +322,8 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       botType,
       hasMonqueryData: !!nodeItems,
       hasActiveLock,
+      cardCount,
+      cardHasActiveLock,
     });
   }
 

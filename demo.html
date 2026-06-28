@@ -28,11 +28,13 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .stat-card.total::before { background: #4f46e5; }
 .stat-card.free::before { background: #16a34a; }
 .stat-card.busy::before { background: #dc2626; }
+.stat-card.device-free::before { background: #0ea5e9; }
 .stat-card .label { font-size: 11px; color: #64748b; margin-bottom: 4px; letter-spacing: .3px; }
 .stat-card .value { font-size: 26px; font-weight: 700; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
 .stat-card .value.total { color: #4f46e5; }
 .stat-card .value.free { color: #16a34a; }
 .stat-card .value.busy { color: #dc2626; }
+.stat-card .value.device-free { color: #0ea5e9; }
 
 /* Filters */
 .filters { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
@@ -165,10 +167,10 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
     <span class="status-btn" data-sort="mem-desc">显存 ↓</span>
   </div>
   <div class="legend">
-    <div class="legend-item"><span class="legend-line" style="background:#4f46e5"></span><span>平均 XPU 使用率</span></div>
+    <div class="legend-item"><span class="legend-line" style="background:#4f46e5"></span><span>XPU 使用率</span></div>
 
     <div class="legend-item"><span class="legend-line" style="background:#ea580c"></span><span>显存利用率</span></div>
-    <div class="legend-item"><span class="legend-line" style="background:rgba(220,38,38,.2)"></span><span>Lock Bot 锁记录</span></div>
+    <div class="legend-item"><span style="width:14px;height:14px;display:inline-block;border-radius:3px;background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.35)"></span><span>Lock Bot 锁记录</span></div>
     <div class="legend-item"><span style="width:1px;height:14px;background:#dc2626;display:inline-block;"></span><span>当前时间</span></div>
   </div>
   <div id="node-list" style="position:relative;padding-top:18px;"></div>
@@ -564,13 +566,25 @@ document.getElementById('error-logout-btn').addEventListener('click', () => {
 // ---- 统计卡片 ----
 
 function renderStats() {
-  const free = nodes.filter(n => n.status === 'FREE').length;
-  const busy = nodes.filter(n => n.status === 'BUSY').length;
-  document.getElementById('stats-bar').innerHTML = `
-    <div class="stat-card total"><div class="label">总节点</div><div class="value total">${nodes.length}</div></div>
-    <div class="stat-card free"><div class="label">空闲</div><div class="value free">${free}</div></div>
-    <div class="stat-card busy"><div class="label">占用</div><div class="value busy">${busy}</div></div>
-  `;
+  const freeNodes = nodes.filter(n => n.botType === 'NODE' && n.status === 'FREE').length;
+  let freeDeviceCards = 0;
+  let totalCards = 0;
+  for (const node of nodes) {
+    totalCards += node.cardCount || 8;
+    if (node.botType === 'DEVICE') {
+      const cardCount = node.cardCount || 8;
+      for (let c = 0; c < cardCount; c++) {
+        const memUtil = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][nowIdx] : 0;
+        const hasLock = (node.cardHasActiveLock && node.cardHasActiveLock[c]) || false;
+        if (memUtil < 10 && !hasLock) freeDeviceCards++;
+      }
+    }
+  }
+  document.getElementById('stats-bar').innerHTML =
+    '<div class="stat-card total"><div class="label">总节点</div><div class="value total">' + nodes.length + '</div></div>' +
+    '<div class="stat-card total"><div class="label">总卡数</div><div class="value total">' + totalCards + '</div></div>' +
+    '<div class="stat-card free"><div class="label">可占用 NODES</div><div class="value free">' + freeNodes + '</div></div>' +
+    '<div class="stat-card device-free"><div class="label">可占用 DEVICE 卡</div><div class="value device-free">' + freeDeviceCards + '</div></div>';
 }
 
 // ---- 状态栏 ----
