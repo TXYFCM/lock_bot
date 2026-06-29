@@ -1,6 +1,6 @@
 // proxy.js — 本地代理，解决内网 API 跨域问题
 // 用法: node proxy.js
-// 访问 http://localhost:8900/demo.html
+// 访问 http://localhost:8900/index.html
 //
 // 配置: 从 config.json 读取，支持环境变量覆盖:
 //   PROXY_PORT      — 代理监听端口
@@ -117,7 +117,7 @@ const server = http.createServer((req, res) => {
   }
 
   // ---- 静态文件 ----
-  let filePath = url === '/' ? '/demo.html' : url;
+  let filePath = (url === '/' || url === '/demo.html') ? '/index.html' : url;
   filePath = path.join(ROOT, decodeURIComponent(filePath));
   // 安全检查：禁止跳出 ROOT
   if (!filePath.startsWith(ROOT)) {
@@ -137,7 +137,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`✓ Proxy ready at http://localhost:${PORT}/demo.html`);
+  console.log(`✓ Proxy ready at http://localhost:${PORT}/index.html`);
   console.log(`  Lock Bot  → ${config.backend.lockbot.host}:${config.backend.lockbot.port} (via /lockbot)`);
   console.log(`  Monquery  → ${config.backend.monquery.host}:${config.backend.monquery.port} (via /monquery)`);
 });

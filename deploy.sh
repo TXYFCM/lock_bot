@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # 检查必要文件
-for f in proxy.js demo.html api.js adapter.js; do
+for f in proxy.js index.html api.js adapter.js; do
   if [ ! -f "$f" ]; then
     echo "❌ 缺少文件: $f"
     exit 1

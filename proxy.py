@@ -160,7 +160,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             return self.proxy_to(mq["host"], mq["port"])
 
         # 静态文件
-        file_path = self.path.lstrip("/") or "demo.html"
+        file_path = self.path.lstrip("/") or "index.html"
         full_path = os.path.normpath(os.path.join(ROOT, file_path))
         # 安全检查
         if not full_path.startswith(ROOT):
@@ -177,7 +177,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 if __name__ == "__main__":
     bind = CONFIG["proxy"].get("bind", "0.0.0.0")
     server = http.server.HTTPServer((bind, PORT), ProxyHandler)
-    print(f"✓ Proxy ready at http://localhost:{PORT}/demo.html")
+    print(f"✓ Proxy ready at http://localhost:{PORT}/index.html")
     print(f"  Lock Bot  → {CONFIG['backend']['lockbot']['host']}:{CONFIG['backend']['lockbot']['port']} (via /lockbot)")
     print(f"  Monquery  → {CONFIG['backend']['monquery']['host']}:{CONFIG['backend']['monquery']['port']} (via /monquery)")
     server.serve_forever()

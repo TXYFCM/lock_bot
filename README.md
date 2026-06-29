@@ -9,7 +9,7 @@
 ```bash
 cd /home/users/v_qiujie04/monitor
 node proxy.js                    # 启动本地代理
-# 浏览器打开 http://localhost:8900/demo.html
+# 浏览器打开 http://localhost:8900/index.html
 ```
 
 在页面用 **Lock Bot 平台账号密码** 登录。Token 自动保存到 localStorage，4 小时有效期内刷新无需重登。
@@ -64,7 +64,7 @@ node proxy.js                    # 启动本地代理
 ## 架构
 
 ```
-浏览器 (demo.html — ES Module, 约 1000 行)
+浏览器 (index.html — ES Module, 约 1000 行)
   │
   ├─ api.js         HTTP 请求层（30s 超时 AbortController）
   │   ├─ loginLockBot(token)              → POST /lockbot/api/auth/login
@@ -79,7 +79,7 @@ node proxy.js                    # 启动本地代理
   │   └─ 辅助：toSlotIndex / parseSlotFromTimestamp / groupHistoryOccupations /
   │           deriveMemOccupations / fillUtilArray / buildOccupationRange
   │
-  └─ demo.html      渲染 & 交互
+  └─ index.html      渲染 & 交互
       ├─ loadAllData（两阶段：Lock Bot 先行，Monquery 后补）
       ├─ adaptAndRender（合并多 Bot → 适配 → 排序 → renderStats + renderList）
       ├─ renderStats / renderList / getFiltered（过滤 + 排序）
@@ -93,7 +93,7 @@ node proxy.js                    # 启动本地代理
 
 | 文件 | 作用 |
 |------|------|
-| `demo.html` | 前端仪表盘 UI + 内联 CSS + ES Module（约 1000 行） |
+| `index.html` | 前端仪表盘 UI + 内联 CSS + ES Module（约 1000 行） |
 | `api.js` | API 调用层（纯 fetch 封装，无业务逻辑） |
 | `adapter.js` | 数据适配层（原始 API 响应 → `NodeData[]`） |
 | `proxy.js` | 本地代理（Node.js 原生 http 模块，推荐） |
@@ -351,7 +351,7 @@ nohup node proxy.js > /tmp/proxy.log 2>&1 &   # 后台运行
 ```bash
 cd /home/users/v_qiujie04/monitor
 node proxy.js                    # 启动代理
-# 修改 demo.html / api.js / adapter.js 后，pkill -f proxy.js 再重新启动
+# 修改 index.html / api.js / adapter.js 后，pkill -f proxy.js 再重新启动
 # 或者用 xpu-monitor-restart skill 一键重启 + 验证
 ```
 

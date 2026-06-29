@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pkill -f "proxy.js" 2>/dev/null; sleep 1
 cd /home/users/v_qiujie04/monitor && nohup /home/users/v_qiujie04/.nvm/versions/node/v22.23.1/bin/node proxy.js > /tmp/proxy.log 2>&1 &
 # 验证（注意：必须 --noproxy '*' 绕过公司代理）
-curl -s --noproxy '*' http://localhost:8900/demo.html | head -3
+curl -s --noproxy '*' http://localhost:8900/index.html | head -3
 # 页面用 Lock Bot 账号密码登录
 ```
 
@@ -51,7 +51,7 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
 ## 架构
 
 ```
-浏览器 (demo.html 使用 ES Module type="module")
+浏览器 (index.html 使用 ES Module type="module")
   │
   ├─ api.js        → HTTP 请求（30s 超时，AbortController）
   │   ├─ loginLockBot()          → POST /lockbot/api/auth/login
@@ -66,7 +66,7 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
   │   ├─ adaptNodeData()  → (lockBotState, monqueryData, nowIdx, botType) → NodeData[]
   │   └─ 辅助: toSlotIndex(), fillUtilArray(), buildOccupationRange(), parseSlotFromTimestamp(), groupHistoryOccupations(), deriveMemOccupations()
   │
-  └─ demo.html      → 渲染 & 交互
+  └─ index.html      → 渲染 & 交互
       ├─ renderStats()        → 顶部 3 个统计卡片（总节点/空闲/占用）
       ├─ renderList()         → 节点列表 + 过滤/排序/展开
       ├─ drawUtilLine()       → Canvas 折线图 + 微网格背景（每 1h 竖虚线 + 25/50/75% 横虚线）
@@ -78,10 +78,10 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
 
 ```
 Lock Bot API ─┐
-              ├──> api.js ──> adapter.js ──> NodeData[] ──> demo.html 渲染
+              ├──> api.js ──> adapter.js ──> NodeData[] ──> index.html 渲染
 Monquery API ─┘
 
-<demo.html:loadAllData()>
+<index.html:loadAllData()>
   now = new Date()
   start = formatDateStart(now)  → "YYYYMMDD000000"（今日 0 点）
   end   = formatDateTime(now)   → "YYYYMMDDHHmmss"（当前时刻）
@@ -179,7 +179,7 @@ Monquery **不支持通配符 namespace**，节点列表必须硬编码维护。
 
 | 文件 | 作用 |
 |------|------|
-| `demo.html` | 前端仪表盘 UI（单文件，约 950 行）+ 内联 CSS + ES Module |
+| `index.html` | 前端仪表盘 UI（单文件，约 950 行）+ 内联 CSS + ES Module |
 | `api.js` | API 调用层（纯 fetch 封装，无业务逻辑） |
 | `adapter.js` | 数据适配层（原始 API 响应 → `NodeData[]`） |
 | `proxy.js` | 本地代理（Node.js 原生 http 模块，固定 8900 端口） |
