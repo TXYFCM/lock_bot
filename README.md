@@ -20,6 +20,7 @@ node proxy.js                    # 启动本地代理
 
 ### 资源总览
 - 顶部 6 张统计卡片：总节点 / LOCKED 节点 / BUSY 节点 / 总卡数 / LOCKER 卡数 / BUSY 卡数
+- BUSY 节点数为非 FREE 节点总数（PARTIAL + BUSY），LOCKED 按 Lock Bot 活跃锁统计
 
 ### 状态栏 & 降级策略
 - 🟢 绿色「数据正常」— Lock Bot + Monquery 双通道正常
@@ -30,24 +31,25 @@ node proxy.js                    # 启动本地代理
 
 ### 节点列表
 - **状态徽章**：FREE（绿）/ PARTIAL（黄）/ BUSY（红）/ 无数据（灰）
-- **类型标签**：DEVICE（紫色，始终展开 8 卡详情）/ NODE（灰色，点击 `+`/`−` 折叠展开）
+- **展开按钮**：点击「展开」查看 8 卡详情（利用率 + 锁状态），点击「收起」折叠
+- **类型标签**：DEVICE（紫）/ NODE（灰），区分 Bot 类型
 - **异常检测**：
-  - 匿名占用（BUSY 但无 Lock Bot 锁）→ 橙色标记
-  - 疑似僵尸锁（FREE 但有 Lock Bot 锁）→ 红色标记
+  - 匿名占用（BUSY 或 PARTIAL 但无 Lock Bot 锁）→ 橙色「匿名占用」
+  - 疑似僵尸锁（FREE 但有 Lock Bot 锁）→ 红色「疑似僵尸锁」
 - **占用红条**：Lock Bot 当前锁 + 当天历史占用，显示用户名，hover 查看时间段
 - **双线折线图**：节点级 Canvas 叠加 XPU 使用率（蓝色）+ 显存利用率（橙色），底部 1 小时间隔微网格
-- **卡片级折线图**：DEVICE 节点每张卡独立迷你折线图（24px），展示单卡全天 XPU + 显存趋势
+- **卡片详情**：展开节点后每张卡独立迷你折线图（24px）+ 当前 XPU/显存利用率 + 锁标记
 - **红色时间线**：当前时刻竖线 + 时间标签，每分钟自动推进
 
 ### 筛选 & 排序
-- 按 Bot 类型（全部 / DEVICE / NODE）筛选
-- 按状态（全部 / 空闲 / 占用）筛选
-- 按 XPU 利用率 / 显存利用率降序排列
-- 关键字搜索（节点名）
+- 按状态筛选（全部 / FREE / PARTIAL / BUSY）
+- 按 XPU 利用率降序（`currentUtil`）
+- 按显存利用率降序（`avgMemUtil[nowIdx]`）
+- 关键字搜索（节点名模糊匹配）
 
 ### 交互细节
 - Canvas hover 快照恢复 + 增量画点，避免全路径重绘
-- 展开/收起 NODE 节点保持滚动位置不变（`instant` 回位）
+- 展开/收起节点保持滚动位置不变（`instant` 回位）
 - 页面不可见时自动跳过刷新，切回后立即刷新
 
 ### 渐进式渲染
@@ -78,11 +80,13 @@ node proxy.js                    # 启动本地代理
   │           deriveMemOccupations / fillUtilArray / buildOccupationRange
   │
   └─ demo.html      渲染 & 交互
-      ├─ renderStats / renderList / drawUtilLine
-      ├─ bindCanvasHover（快照恢复 + 增量圆点）
+      ├─ loadAllData（两阶段：Lock Bot 先行，Monquery 后补）
+      ├─ adaptAndRender（合并多 Bot → 适配 → 排序 → renderStats + renderList）
+      ├─ renderStats / renderList / getFiltered（过滤 + 排序）
+      ├─ drawUtilLine / captureLayerSnapshot / bindCanvasHover（Canvas 折线图 + 快照 hover）
       ├─ bindTooltips（占用块 hover 时间）
-      ├─ addGlobalNowLine（红色当前时间线）
-      └─ 两阶段渲染：Lock Bot 先行，Monquery 后补
+      ├─ addGlobalNowLine / updateNowIdx / calcNowIdx（红色时间线 + 每 60s 推进）
+      └─ startAutoRefresh（每 60s 自动刷新，页面隐藏时跳过）
 ```
 
 ### 文件职责
@@ -100,7 +104,6 @@ node proxy.js                    # 启动本地代理
 | `pm2.config.cjs` | PM2 进程守护配置 |
 | `xpu-monitor.service` | systemd 服务单元 |
 | `CLAUDE.md` | 项目文档（给 AI 助手用） |
-| `TODO.md` | 待优化项清单 |
 
 ### 代理路由
 
@@ -247,6 +250,20 @@ utilClass(val, hasData):
   val < 20  → low（绿色）   // 低负载
   !hasData  → nodata（灰色）// 无数据
 
+### 异常检测
+
+比较 Lock Bot 锁状态与 Monquery 利用率，标记三种不一致：
+
+```
+匿名占用：node.status ∈ {BUSY, PARTIAL} && !hasActiveLock
+         → 橙色「匿名占用」badge（GPU 在使用但未通过 Lock Bot 锁）
+丧尸锁：  node.status === FREE && hasActiveLock
+         → 红色「疑似僵尸锁」badge（Lock Bot 有锁但 GPU 实际空闲）
+一致：    其余情况 → 无额外标记
+```
+
+bdc 节点（无 Monquery 数据）不参与异常检测。
+
 ### 多 Bot 合并策略
 - 登录后拉取用户所有 Bot
 - 同一节点出现在多个 Bot → **先到先得**（不再 DEVICE 优先）
@@ -257,18 +274,20 @@ utilClass(val, hasData):
 ```
 loadAllData():
   1. Promise.all([所有 Bot 状态, 所有 Bot 历史占用]) → 秒出
-  2. adaptAndRender(stateResults, null, status, occupancyHistory)
-     → Lock Bot 先行渲染（节点名、占用红条即时可见，利用率显示 --）
+  2. 若 nodes 中尚未有 Monquery 数据（首次加载），先渲染 Lock Bot 先行版
+     → adaptAndRender(stateResults, null, status, occupancyHistory)
+     → 节点名、占用红条即时可见，利用率显示 --
   3. await fetchMonqueryUtilization(start, end) → 可能 10-30s
   4. adaptAndRender(stateResults, monqueryData, status, occupancyHistory)
      → 补上利用率 + 显存数据
+  5. 自动刷新时跳过步骤 2（hasExistingData 为 true），等 Monquery 数据到达后一次渲染
 ```
 
 ### 占用数据合并
 - 当前活跃锁（来自 state API）+ 当天历史锁（来自 occupancy API）
-- 按 `start,end,user` 三元组去重
-- DEVICE 类型：节点级占用由 8 卡占用范围合并推导（最左到最右）
-- NODE 类型：当前锁 + 历史锁均写入所有 8 卡
+- 按 `start,end,user` 三元组去重（相同记录只保留一份）
+- **DEVICE 类型**：每卡独立记录锁，节点级占用取 8 卡时间范围并集（最左的 start ~ 最右的 end）
+- **NODE 类型**：当前锁 + 历史锁均写入所有 8 卡（整机锁定）
 
 ### 显存推导占用
 ```js
@@ -377,4 +396,4 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
 7. **Canvas 快照**：渲染后捕获快照，hover 时快照恢复 + 增量画点，避免全路径重绘
 8. **Token 持久化**：登录成功存 localStorage（4 小时过期），页面加载时自动恢复；退出登录时清除
 9. **代理验证**：`http_proxy` 环境变量会劫持 localhost 请求，验证时必须 `curl --noproxy '*'`
-10. **日期格式**：occupancy API 的 `date` 参数使用**本地日期**（`YYYY-MM-DD`），不是 UTC 日期
+10. **日期格式**：occupancy API 的 `date` 参数取客户端 `new Date()` 拼接为 `YYYY-MM-DD`，即发起请求的浏览器所在时区的日期
