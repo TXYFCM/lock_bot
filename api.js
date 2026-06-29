@@ -9,7 +9,7 @@ const CLUSTER = 'wxtky02-p800-backup-8nic-vd';
 
 // 44 个有监控数据的节点（排除 node13, node14, node17, node33, node36）
 const MONITORED_NODES = Array.from({ length: 51 }, (_, i) => i + 1)
-  .filter(n => ![13, 14, 17, 33, 36].includes(n));
+  .filter(n => ![13, 14, 17, 36].includes(n));
 
 function buildNamespace(nodeNum) {
   return `${CLUSTER}-node${nodeNum}.wxtky02`;

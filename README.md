@@ -2,7 +2,7 @@
 
 纯前端单页应用，实时展示百度百舸 GPU 集群的 XPU 使用率、显存占用率，以及 Lock Bot 平台的资源锁定状态。
 
-**集群**：`wxtky02-p800-backup-8nic-vd`（44 节点 × 8 卡，node1~node51，排除 13/14/17/33/36）+ bdc9/19/28（仅展示 Lock Bot 占用，无 Monquery 监控数据）。
+**集群**：`wxtky02-p800-backup-8nic-vd`（45 节点 × 8 卡，node1~node51，排除 13/14/17/36）+ bdc9/19/28（仅展示 Lock Bot 占用，无 Monquery 监控数据）。
 
 ## 快速开始
 
