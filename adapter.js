@@ -295,12 +295,23 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       }
     }
 
-    const currentUtil = avgUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
+    // 用最新已完成槽代替当前进行中槽（Monquery 数据有 0-5min 延迟，nowIdx 可能指向未填充的槽）
+    const effectiveIdx = Math.max(0, nowIdx - 1);
+    const currentUtil = avgUtil[effectiveIdx];
+    const currentMemUtil = avgMemUtil[effectiveIdx];
 
-    // ---- 基于 XPU 使用率或显存占用率决定节点状态 ----
-    // 任一指标 >= 10% → BUSY（覆盖"高 XPU 低显存"的纯计算场景）
-    const currentMemUtil = avgMemUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
-    const nodeStatus = (currentMemUtil >= 10 || currentUtil >= 10) ? 'BUSY' : 'FREE';
+    // ---- 逐卡判定状态：全空闲 FREE / 全占用 BUSY / 部分占用 PARTIAL ----
+    let busyCards = 0;
+    for (let c = 0; c < CARD_COUNT; c++) {
+      const cm = cardMemUtils[c] ? cardMemUtils[c][effectiveIdx] : 0;
+      const cu = cardUtils[c] ? cardUtils[c][effectiveIdx] : 0;
+      if (cm >= 10 || cu >= 10) busyCards++;
+    }
+    let nodeStatus = busyCards === 0 ? 'FREE' : busyCards === CARD_COUNT ? 'BUSY' : 'PARTIAL';
+    // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
+    if (!nodeItems) {
+      nodeStatus = hasActiveLock ? 'BUSY' : 'FREE';
+    }
 
     // ---- 从显存数据推导每张卡的实际占用时段 ----
     const cardMemOccupations = Array.from({ length: CARD_COUNT }, (_, c) =>

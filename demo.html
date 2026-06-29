@@ -50,8 +50,8 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .node-row:hover { box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06); }
 .node-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .node-name { font-weight: 600; font-size: 15px; min-width: 80px; color: #1e293b; }
-	.expand-toggle { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #e2e8f0; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; font-size: 12px; color: #94a3b8; cursor: pointer; user-select: none; margin-left: 4px; transition: all .2s; line-height: 1; }
-	.expand-toggle:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
+	.expand-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; border-radius: 6px; border: none; font-size: 11px; font-weight: 600; color: #fff; background: #4f46e5; cursor: pointer; user-select: none; margin-left: 6px; transition: all .2s; line-height: 1.6; }
+	.expand-toggle:hover { background: #4338ca; }
 	.type-tag { font-size: 9px; font-weight: 600; letter-spacing: .5px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
 	.type-tag-DEVICE { background: #eef2ff; color: #4f46e5; }
 	.type-tag-NODE { background: #f1f5f9; color: #64748b; }
@@ -81,7 +81,7 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .status-bar.caution .status-dot { background: #d97706; }
 .status-bar.error .status-dot { background: #dc2626; }
 .status-text { color: #475569; }
-.status-timestamp { color: #94a3b8; font-size: 11px; margin-left: auto; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.status-timestamp { color: #d97706; font-size: 12px; font-weight: 600; margin-left: auto; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
 .status-retry { cursor: pointer; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 10px; font-size: 11px; background: #fff; color: #64748b; transition: all .15s; }
 .status-retry:hover { border-color: #4f46e5; color: #4f46e5; }
 
@@ -152,14 +152,10 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
   <div class="stats-bar" id="stats-bar"></div>
   <div class="status-bar" id="status-bar" style="display:none"></div>
   <div class="filters">
-    <label>类型：</label>
-    <span class="status-btn active" data-type="ALL">全部</span>
-    <span class="status-btn" data-type="NODE">NODES</span>
-    <span class="status-btn" data-type="DEVICE">DEVICES</span>
-    <span style="margin:0 8px;color:#ddd;">|</span>
     <label>状态：</label>
     <span class="status-btn active" data-status="ALL">全部</span>
     <span class="status-btn" data-status="FREE">FREE</span>
+    <span class="status-btn" data-status="PARTIAL">PARTIAL</span>
     <span class="status-btn" data-status="BUSY">BUSY</span>
     <input class="search-input" id="search" placeholder="搜索节点...">
     <label>排序：</label>
@@ -344,9 +340,10 @@ function updateNowIdx() {
 
   // 如果跨了 5 分钟槽，更新 currentUtil
   if (nowIdx !== prevIdx) {
+    const effectiveIdx = Math.max(0, nowIdx - 1);
     for (const node of nodes) {
-      node.currentUtil = node.avgUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
-      node.currentMemUtil = node.avgMemUtil[Math.min(nowIdx, SLOT_COUNT - 1)];
+      node.currentUtil = node.avgUtil[effectiveIdx];
+      node.currentMemUtil = node.avgMemUtil[effectiveIdx];
     }
     renderStats();
   }
@@ -566,25 +563,30 @@ document.getElementById('error-logout-btn').addEventListener('click', () => {
 // ---- 统计卡片 ----
 
 function renderStats() {
-  const freeNodes = nodes.filter(n => n.botType === 'NODE' && n.status === 'FREE').length;
-  let freeDeviceCards = 0;
-  let totalCards = 0;
+  const effectiveIdx = Math.max(0, nowIdx - 1);
+  let busyNodes = 0, freeNodes = 0, busyCards = 0, freeCards = 0;
   for (const node of nodes) {
-    totalCards += node.cardCount || 8;
-    if (node.botType === 'DEVICE') {
-      const cardCount = node.cardCount || 8;
-      for (let c = 0; c < cardCount; c++) {
-        const memUtil = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][nowIdx] : 0;
-        const hasLock = (node.cardHasActiveLock && node.cardHasActiveLock[c]) || false;
-        if (memUtil < 10 && !hasLock) freeDeviceCards++;
+    if (node.status === 'FREE') freeNodes++;
+    else busyNodes++; // BUSY / PARTIAL 都是非空闲
+    for (let c = 0; c < 8; c++) {
+      if (node.hasMonqueryData) {
+        const memUtil = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][effectiveIdx] : 0;
+        const util = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][effectiveIdx] : 0;
+        if (memUtil >= 10 || util >= 10) busyCards++; else freeCards++;
+      } else {
+        // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
+        if (node.hasActiveLock) busyCards++; else freeCards++;
       }
     }
   }
+  const totalCards = nodes.length * 8;
   document.getElementById('stats-bar').innerHTML =
     '<div class="stat-card total"><div class="label">总节点</div><div class="value total">' + nodes.length + '</div></div>' +
     '<div class="stat-card total"><div class="label">总卡数</div><div class="value total">' + totalCards + '</div></div>' +
-    '<div class="stat-card free"><div class="label">可占用 NODES</div><div class="value free">' + freeNodes + '</div></div>' +
-    '<div class="stat-card device-free"><div class="label">可占用 DEVICE 卡</div><div class="value device-free">' + freeDeviceCards + '</div></div>';
+    '<div class="stat-card busy"><div class="label">BUSY节点</div><div class="value busy">' + busyNodes + '</div></div>' +
+    '<div class="stat-card busy"><div class="label">BUSY卡数</div><div class="value busy">' + busyCards + '</div></div>' +
+    '<div class="stat-card free"><div class="label">FREE节点</div><div class="value free">' + freeNodes + '</div></div>' +
+    '<div class="stat-card free"><div class="label">FREE卡数</div><div class="value free">' + freeCards + '</div></div>';
 }
 
 // ---- 状态栏 ----
@@ -659,13 +661,7 @@ function hideErrorOverlay() {
 
 document.querySelectorAll('.status-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.type !== undefined) {
-      // 类型筛选按钮
-      document.querySelectorAll('.status-btn[data-type]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeType = btn.dataset.type;
-      renderList();
-    } else if (btn.dataset.status !== undefined) {
+    if (btn.dataset.status !== undefined) {
       // 状态筛选按钮
       document.querySelectorAll('.status-btn[data-status]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -761,7 +757,7 @@ function renderList() {
     let warnBadge = '';
     if (hasData) {
       const locked = !!node.hasActiveLock;
-      if (node.status === 'BUSY' && !locked) {
+      if ((node.status === 'BUSY' || node.status === 'PARTIAL') && !locked) {
         warnBadge = '<span class="badge-warn-anon" title="显存占用中但无 Lock Bot 锁，疑似匿名占用">匿名占用</span>';
       } else if (node.status === 'FREE' && locked) {
         warnBadge = '<span class="badge-warn-zombie" title="有 Lock Bot 锁但显存未使用，疑似僵尸锁">疑似僵尸锁</span>';
@@ -770,9 +766,7 @@ function renderList() {
 
     row.className = 'node-row';
     const isExpanded = expandedNodes.has(node.name);
-    const expandToggle = node.botType === 'NODE'
-      ? `<span class="expand-toggle" data-node="${node.name}">${isExpanded ? '−' : '+'}</span>`
-      : '';
+    const expandToggle = `<span class="expand-toggle" data-node="${node.name}">${isExpanded ? '收起' : '展开'}</span>`;
     row.innerHTML = `
       <div class="node-header">
         <span class="node-name">${node.name}</span><span class="type-tag type-tag-${node.botType}">${node.botType}</span>
@@ -790,14 +784,16 @@ function renderList() {
     drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgMemUtil, '#ea580c', true);
     captureLayerSnapshot(row.querySelector('.timeline-container canvas'));
 
-    // DEVICE 节点 / 已展开的 NODE 节点：内联显示 8 卡详情
-    if (node.botType === 'DEVICE' || expandedNodes.has(node.name)) {
+    if (expandedNodes.has(node.name)) {
       for (let c = 0; c < 8; c++) {
         const cardRow = document.createElement('div');
         cardRow.className = 'card-row';
-        const cu = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][nowIdx] : 0;
-        const cm = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][nowIdx] : 0;
-        const cardBusy = cm >= 10;
+        const effectiveIdx = Math.max(0, nowIdx - 1);
+        const cu = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][effectiveIdx] : 0;
+        const cm = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][effectiveIdx] : 0;
+        const cardBusy = node.hasMonqueryData
+          ? (cm >= 10 || cu >= 10)
+          : (node.cardHasActiveLock && node.cardHasActiveLock[c]);
         const lockMark = (node.cardOccupations && node.cardOccupations[c] && node.cardOccupations[c].length)
           ? `<span class="card-lock" title="有 Lock Bot 锁记录">🔒</span>` : '';
         cardRow.innerHTML = `
