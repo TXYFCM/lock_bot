@@ -40,8 +40,7 @@ def test_bare_at_is_seven_columns():
         xpu_usage={"node1": NodeUsage(util=82.0, mem=50.0, container="my_ctr")},
     )
     assert "未Lock卡数：2；当前Free卡数：0" in out
-    assert "节点状态表示机器当前是否正在使用" in out
-    assert "10" not in out.split("节点状态表示机器当前是否正在使用", 1)[1].split("| IP |", 1)[0]
+    assert "节点状态（XPU显存）" in out
     assert "| IP | lock同学 | 节点状态 | 卡状态 | 剩余时间 | XPU%/MEM% | 容器名 |" in out
     assert "82.0%/50.0%" in out
     assert "my_ctr" in out
@@ -267,16 +266,15 @@ def test_mixed_lockers_per_group_xpu():
     rows = [ln for ln in out.splitlines() if "u1" in ln or "u2" in ln]
     u1_row = next(r for r in rows if "u1" in r)
     u2_row = next(r for r in rows if "u2" in r)
-    # lock同学 is column 2; dev range is column 4 (卡状态)
-    assert "dev0-1" in u1_row
-    assert "dev2-3" in u2_row
+    # 卡状态: device range + GPU-mem status (u1 avg 70 > 10 → BUSY, u2 avg 3 <= 10 → FREE).
+    assert "dev0-1 <font color=\"red\">BUSY</font>" in u1_row
+    assert "dev2-3 <font color=\"green\">FREE</font>" in u2_row
     # per-group XPU%/MEM%
     assert "80.0%/70.0%" in u1_row
     assert "5.0%/3.0%" in u2_row
-    # Per-group status badge on BOTH rows (scenario 3). u1's high-mem group -> BUSY;
-    # u2's low-mem group (avg 3 <= threshold 10) -> FREE.
-    assert "BUSY" in u1_row
-    assert "FREE" in u2_row
+    # Node status: mixed per-card mem (70/70/3/3) → PARTIAL on both rows.
+    assert "PARTIAL" in u1_row
+    assert "PARTIAL" in u2_row
     # container ctrA (max-mem card) appears for u1's group; u2's group has no container -> "--"
     assert "ctrA" in u1_row
     assert "| -- |" in u2_row
@@ -308,10 +306,10 @@ def test_shared_lock_repeats_each_user():
     data_rows = [line for line in out.splitlines() if "u1" in line or "u2" in line]
     u1_row = next(r for r in data_rows if "u1" in r)
     u2_row = next(r for r in data_rows if "u2" in r)
-    # Both rows repeat dev0, the BUSY badge, the XPU cell and the container name.
+    # No per_card → node N/A, card N/A. Both rows repeat dev0 + N/A + XPU + container.
     for row in (u1_row, u2_row):
         assert "dev0" in row
-        assert "BUSY" in row
+        assert "N/A" in row
         assert "45.0%/55.0%" in row
         assert "shared_ctr" in row
 
@@ -360,9 +358,10 @@ def test_mixed_lockers_both_rows_show_badge():
     assert "job_b" in u2_row
 
 
-def test_partial_lock_idle_shows_free_and_dashes():
-    # dev0-1 locked & high-mem (BUSY), dev2-7 idle & 0% (FREE). Idle group's empty container
-    # renders as "--" (scenario 4).
+def test_partial_lock_idle_shows_partial_and_dashes():
+    # dev0-1 locked & high-mem (65% > 10), dev2-7 idle & 0% mem.
+    # Node status: GPU-memory-based — some cards busy, some free → PARTIAL.
+    # 卡状态: per-group GPU-mem — locked group BUSY, idle group FREE.
     state = {
         "node1": [
             {
@@ -402,8 +401,12 @@ def test_partial_lock_idle_shows_free_and_dashes():
         },
     )
     lock_row = next(ln for ln in out.splitlines() if "u1" in ln)
-    idle_row = next(ln for ln in out.splitlines() if "UNLOCK" in ln)
-    assert "BUSY" in lock_row
-    assert "FREE" in idle_row
+    idle_row = next(ln for ln in out.splitlines() if "null" in ln)
+    # Node status is PARTIAL for all rows (GPU mem: some high, some low).
+    assert "PARTIAL" in lock_row
+    assert "PARTIAL" in idle_row
+    # 卡状态: device range + lock status.
+    assert 'dev0-1 <font color="red">BUSY</font>' in lock_row
+    assert 'dev2-7 <font color="green">FREE</font>' in idle_row
     # idle group has no container -> "--"
     assert "| -- |" in idle_row

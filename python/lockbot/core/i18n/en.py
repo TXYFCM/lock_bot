@@ -67,7 +67,7 @@ MESSAGES = {
     "query.cluster_usage_title": "ℹ️ Cluster Usage Details\n",
     "query.idle_summary_node": '<font color="blue">**Unlocked nodes: {unlocked_nodes}; Current FREE nodes: {free_nodes}**</font>\n',
     "query.idle_summary_device": '<font color="blue">**Unlocked cards: {unlocked_devs}; Current FREE cards: {free_devs}**</font>\n',
-    "query.status_tip": "ℹ️ Node status indicates whether the machine is currently in use: BUSY means in use, FREE means currently free.\n",
+    "query.status_tip": "ℹ️ Node status (XPU mem): BUSY=all busy, PARTIAL=some busy, FREE=all idle.\n",
     "query.table_header": "| IP | Locked by | Node | Card | Remaining |\n| --- | --- | --- | --- | --- |\n",
     "query.table_header_xpu": (
         "| IP | Locked by | Node | Card | Remaining | XPU%/MEM% | Container |\n"

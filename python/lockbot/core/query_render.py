@@ -12,15 +12,18 @@ from lockbot.core.i18n import t
 from lockbot.core.usage_render import min_remaining
 from lockbot.core.utils import format_access_mode, format_duration, remaining_duration
 
-# Status badges are derived from GPU memory utilization (decoupled from lock state):
-#   mem  > MEM_BUSY_THRESHOLD  -> BUSY (red)
-#   mem <= MEM_BUSY_THRESHOLD  -> FREE (green)
-#   mem is None (not collected) -> N/A (gray)
+# Status badges for GPU memory utilization (decoupled from lock state):
+#   all cards mem <= threshold       -> FREE (green)
+#   some above, some below threshold -> PARTIAL (orange)
+#   all cards mem  > threshold       -> BUSY (red)
+#   no GPU data available            -> N/A (gray)
 _STATUS_FREE = '<font color="green">FREE</font>'
+_STATUS_PARTIAL = '<font color="orange">PARTIAL</font>'
 _STATUS_BUSY = '<font color="red">BUSY</font>'
 _STATUS_NA = '<font color="gray">N/A</font>'
-# lock同学 column when nobody holds a lock (decoupled from the status badge).
-_UNLOCK = '<font color="green">UNLOCK</font>'
+_STATUS_BADGE = {"free": _STATUS_FREE, "partial": _STATUS_PARTIAL, "busy": _STATUS_BUSY, "na": _STATUS_NA}
+# lock同学 column when nobody holds a lock.
+_UNLOCK = '<font color="green">null</font>'
 # NODE bot: lock同学 column when nobody holds a lock.
 _NODE_UNLOCK = '<font color="green">null</font>'
 
@@ -62,6 +65,71 @@ def _dev_range(dev_ids):
     return f"dev{dev_ids[0]}-{dev_ids[-1]}" if len(dev_ids) > 1 else f"dev{dev_ids[0]}"
 
 
+def _node_gpu_status(xpu_usage, node_key, threshold):
+    """Classify a node's GPU memory coverage from per-card data.
+
+    Returns ``"free"`` (all cards ≤ threshold), ``"partial"`` (mixed),
+    ``"busy"`` (all > threshold), or ``"na"`` (no GPU data).
+    """
+    usage = xpu_usage.get(node_key) if xpu_usage else None
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card:
+        return "na"
+    over = sum(1 for c in per_card if c.mem is not None and c.mem > threshold)
+    under = sum(1 for c in per_card if c.mem is not None and c.mem <= threshold)
+    if over == 0 and under > 0:
+        return "free"
+    if under == 0 and over > 0:
+        return "busy"
+    if over > 0 and under > 0:
+        return "partial"
+    return "na"
+
+
+def _dev_gpu_cell(usage, dev_ids, threshold, fallback):
+    """Format device range + GPU-memory status for the 卡状态 column.
+
+    Per-card counting, fully consistent with ``_node_gpu_status``:
+    all over threshold → BUSY, all under → FREE, mixed → PARTIAL.
+    Falls back to ``fallback`` when per-card data is unavailable.
+    """
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card or any(i >= len(per_card) for i in dev_ids):
+        badge = _STATUS_BADGE.get(fallback, _STATUS_NA)
+        return f"{_dev_range(dev_ids)} {badge}"
+    over = sum(1 for i in dev_ids if per_card[i].mem is not None and per_card[i].mem > threshold)
+    under = sum(1 for i in dev_ids if per_card[i].mem is not None and per_card[i].mem <= threshold)
+    if over == 0 and under > 0:
+        cat = "free"
+    elif under == 0 and over > 0:
+        cat = "busy"
+    elif over > 0 and under > 0:
+        cat = "partial"
+    else:
+        cat = fallback
+    badge = _STATUS_BADGE.get(cat, _STATUS_NA)
+    return f"{_dev_range(dev_ids)} {badge}"
+
+
+# GPU-memory-based sort tiers for DEVICE bot: FREE < PARTIAL < BUSY < N/A.
+_GPU_CAT_RANK = {"free": 0, "partial": 1, "busy": 2, "na": 3}
+
+
+def _node_sort_key_gpu(entry):
+    """DEVICE-bot sort: (1) is_mine, (2) GPU-mem tier, (3) remaining duration.
+
+    ``entry`` is ``(key, state, rem, is_mine, cat, order)`` where ``cat`` is a
+    ``_node_gpu_status`` result.
+    """
+    _key, _state, rem, is_mine, cat, order = entry
+    if is_mine:
+        rank = 0
+    else:
+        rank = 1 + _GPU_CAT_RANK.get(cat, 3)
+    rem_val = rem if rem is not None else 0
+    return (rank, rem_val, order)
+
+
 def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=None):
     """Build full markdown query text for a DEVICE bot."""
     if node_filter is not None:
@@ -95,10 +163,10 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         is_mine = user_id is not None and any(
             u["user_id"] == user_id for d in devs if d.get("status") != "idle" for u in d.get("current_users", [])
         )
-        cat = _mem_category(_node_mem(xpu_usage, node_key), threshold)
+        cat = _node_gpu_status(xpu_usage, node_key, threshold)
         entries.append((node_key, devs, rem, is_mine, cat, order))
 
-    for node_key, devs, _rem, _mine, cat, _order in sorted(entries, key=_node_sort_key):
+    for node_key, devs, _rem, _mine, cat, _order in sorted(entries, key=_node_sort_key_gpu):
         grouped_usage = group_locked_devices(devs)
         shown = set()
         for _, dev_ids in grouped_usage:
@@ -121,7 +189,8 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         first_row = True
         for is_idle, fields in rows:
             dev_ids = fields["dev_ids"]
-            dev_cell = fields["dev"] or _dev_range(dev_ids)
+            # GPU-memory-based per-group card status: "dev0-7 FREE" or "dev0-3 BUSY".
+            dev_cell = _dev_gpu_cell(usage, dev_ids, threshold, cat)
             if is_idle:
                 user_cell = _UNLOCK
                 dur_cell = "--"
@@ -130,10 +199,8 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                 user_cell = f"{fields['user']}（{mode}）".strip()
                 dur_cell = fields["dur"] or "--"
             node_cell = _node_label(cluster_configs, node_key) if first_row else ""
-            # Per-group status badge from this group's card memory (scenario 3/4). Falls back
-            # to the node-level category when usage/per_card is unavailable (incl. NA nodes).
-            group_cat = _group_mem_category(usage, dev_ids, threshold, cat) if xpu_on else cat
-            node_status_cell = _STATUS_BADGE[group_cat]
+            # GPU-memory-based node status badge — same for every row of this node.
+            node_status_cell = _STATUS_BADGE.get(cat, _STATUS_NA)
             # Column order: IP | lock同学 | 节点状态 | 卡状态 | 剩余时间
             cells = [node_cell, user_cell, node_status_cell, dev_cell, dur_cell]
             if xpu_on:
@@ -145,7 +212,8 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                     container_cell = _max_mem_container(usage, dev_ids)
                 # Empty container -> "--", except on NA (collection-failed) nodes where the
                 # container column stays blank alongside the N/A util cell (scenario 7).
-                if not container_cell and group_cat != "na":
+                na_node = usage is None or (usage.util is None and usage.mem is None)
+                if not container_cell and not na_node:
                     container_cell = "--"
                 cells = [*cells, util_cell, container_cell]
             lines.append(_md_row(*cells))
@@ -236,7 +304,6 @@ def _mem_category(mem, threshold):
     return "busy" if mem > threshold else "free"
 
 
-_STATUS_BADGE = {"free": _STATUS_FREE, "busy": _STATUS_BUSY, "na": _STATUS_NA}
 # Within a lock group, order memory tiers FREE < N/A < BUSY.
 _CAT_RANK = {"free": 0, "na": 1, "busy": 2}
 

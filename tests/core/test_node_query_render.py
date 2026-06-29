@@ -43,8 +43,7 @@ def test_node_memory_based_seven_columns_and_status():
     }
     out = build_node_query(_state(), None, _config(), memory_based=True, xpu_usage=xpu)
     assert "未lock节点数：1；当前Free节点数：1" in out
-    assert "节点状态表示机器当前是否正在使用" in out
-    assert "10" not in out.split("节点状态表示机器当前是否正在使用", 1)[1].split("| IP |", 1)[0]
+    assert "节点状态（XPU显存）" in out
     assert "XPU%/MEM%" in out
     assert "5.0%/2.0%" in out
     assert "90.0%/80.0%" in out
