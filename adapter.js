@@ -85,7 +85,12 @@ function parseSlotFromTimestamp(raw) {
       if (ts > 1e12) ts = Math.floor(ts / 1000);
     } else {
       // ISO 时间字符串 → Date 解析 → Unix 秒，再走 toSlotIndex
-      const d = new Date(str);
+      // 无时区标识的字符串强制按 UTC 解析（避免服务器本地时区干扰）
+      let dateStr = str;
+      if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr.trim())) {
+        dateStr = str + 'Z';
+      }
+      const d = new Date(dateStr);
       if (isNaN(d.getTime())) return 0;
       ts = Math.floor(d.getTime() / 1000);
     }

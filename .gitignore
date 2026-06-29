@@ -32,6 +32,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Test artifacts
+.playwright-mcp/
+
 # Environment / secrets
 *.env
 .lockbot_config

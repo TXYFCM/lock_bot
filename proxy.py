@@ -144,18 +144,9 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(f"Not found: {self.path}".encode())
 
     def do_GET(self):
-        self._handle("GET")
+        self._handle()
 
-    def do_POST(self):
-        self._handle("POST")
-
-    def do_PUT(self):
-        self._handle("PUT")
-
-    def do_DELETE(self):
-        self._handle("DELETE")
-
-    def _handle(self, method):
+    def _handle(self):
         lb = CONFIG["backend"]["lockbot"]
         mq = CONFIG["backend"]["monquery"]
 

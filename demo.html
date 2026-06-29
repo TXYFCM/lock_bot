@@ -28,12 +28,14 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .stat-card.total::before { background: #4f46e5; }
 .stat-card.free::before { background: #16a34a; }
 .stat-card.busy::before { background: #dc2626; }
+.stat-card.locked::before { background: #d97706; }
 .stat-card.device-free::before { background: #0ea5e9; }
 .stat-card .label { font-size: 11px; color: #64748b; margin-bottom: 4px; letter-spacing: .3px; }
 .stat-card .value { font-size: 26px; font-weight: 700; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
 .stat-card .value.total { color: #4f46e5; }
 .stat-card .value.free { color: #16a34a; }
 .stat-card .value.busy { color: #dc2626; }
+.stat-card .value.locked { color: #d97706; }
 .stat-card .value.device-free { color: #0ea5e9; }
 
 /* Filters */
@@ -565,9 +567,11 @@ document.getElementById('error-logout-btn').addEventListener('click', () => {
 function renderStats() {
   const effectiveIdx = Math.max(0, nowIdx - 1);
   let busyNodes = 0, freeNodes = 0, busyCards = 0, freeCards = 0;
+  let lockedNodes = 0, lockedCards = 0;
   for (const node of nodes) {
     if (node.status === 'FREE') freeNodes++;
     else busyNodes++; // BUSY / PARTIAL 都是非空闲
+    if (node.hasActiveLock) lockedNodes++;
     for (let c = 0; c < 8; c++) {
       if (node.hasMonqueryData) {
         const memUtil = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][effectiveIdx] : 0;
@@ -577,16 +581,17 @@ function renderStats() {
         // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
         if (node.hasActiveLock) busyCards++; else freeCards++;
       }
+      if (node.cardHasActiveLock && node.cardHasActiveLock[c]) lockedCards++;
     }
   }
   const totalCards = nodes.length * 8;
   document.getElementById('stats-bar').innerHTML =
     '<div class="stat-card total"><div class="label">总节点</div><div class="value total">' + nodes.length + '</div></div>' +
-    '<div class="stat-card total"><div class="label">总卡数</div><div class="value total">' + totalCards + '</div></div>' +
+    '<div class="stat-card locked"><div class="label">LOCKED 节点</div><div class="value locked">' + lockedNodes + '</div></div>' +
     '<div class="stat-card busy"><div class="label">BUSY节点</div><div class="value busy">' + busyNodes + '</div></div>' +
-    '<div class="stat-card busy"><div class="label">BUSY卡数</div><div class="value busy">' + busyCards + '</div></div>' +
-    '<div class="stat-card free"><div class="label">FREE节点</div><div class="value free">' + freeNodes + '</div></div>' +
-    '<div class="stat-card free"><div class="label">FREE卡数</div><div class="value free">' + freeCards + '</div></div>';
+    '<div class="stat-card total"><div class="label">总卡数</div><div class="value total">' + totalCards + '</div></div>' +
+    '<div class="stat-card locked"><div class="label">LOCKER 卡数</div><div class="value locked">' + lockedCards + '</div></div>' +
+    '<div class="stat-card busy"><div class="label">BUSY卡数</div><div class="value busy">' + busyCards + '</div></div>';
 }
 
 // ---- 状态栏 ----

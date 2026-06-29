@@ -19,7 +19,7 @@ node proxy.js                    # 启动本地代理
 ## 功能
 
 ### 资源总览
-- 顶部 3 张统计卡片：总节点数 / 空闲节点 / 占用节点，一目了然
+- 顶部 6 张统计卡片：总节点 / LOCKED 节点 / BUSY 节点 / 总卡数 / LOCKER 卡数 / BUSY 卡数
 
 ### 状态栏 & 降级策略
 - 🟢 绿色「数据正常」— Lock Bot + Monquery 双通道正常
@@ -29,7 +29,7 @@ node proxy.js                    # 启动本地代理
 - 自动刷新失败 → Toast 浮动通知（5 秒消失），不覆盖现有数据
 
 ### 节点列表
-- **状态徽章**：FREE（绿）/ BUSY（红）/ 无数据（灰）
+- **状态徽章**：FREE（绿）/ PARTIAL（黄）/ BUSY（红）/ 无数据（灰）
 - **类型标签**：DEVICE（紫色，始终展开 8 卡详情）/ NODE（灰色，点击 `+`/`−` 折叠展开）
 - **异常检测**：
   - 匿名占用（BUSY 但无 Lock Bot 锁）→ 橙色标记
@@ -118,7 +118,7 @@ node proxy.js                    # 启动本地代理
 ```js
 NodeData = {
   name: "node1",                     // 节点名（"node1" 或 "bdc9"）
-  status: "FREE" | "BUSY",           // XPU 或显存任一 ≥ 10% → BUSY
+  status: "FREE" | "BUSY" | "PARTIAL",  // 逐卡利用率判定，见关键逻辑
   currentUtil: 45.2,                 // 当前 5 分钟槽平均 XPU 使用率
   currentMemUtil: 32.1,              // 当前 5 分钟槽平均显存占用率
   avgUtil:    number[288],           // 288 槽平均 XPU 使用率（节点级）
@@ -131,6 +131,7 @@ NodeData = {
   botType: "DEVICE" | "NODE",        // Bot 类型
   hasMonqueryData: boolean,          // 是否有监控数据（bdc 为 false）
   hasActiveLock: boolean,            // 当前是否有活跃 Lock Bot 锁
+  cardHasActiveLock: boolean[8],    // 逐卡 Lock Bot 锁状态
 }
 ```
 
@@ -188,16 +189,63 @@ toSlotIndex(ts) = Math.floor(((ts + 28800) % 86400) / 300)
 // +28800 = UTC+8 偏移，% 86400 = 当天秒数，/ 300 = 5 分钟槽
 ```
 
-`parseSlotFromTimestamp()` 统一处理三种时间格式：
+`parseSlotFromTimestamp()` 统一处理三种格式：
 - Unix 秒（≤ 1e12）
-- Unix 毫秒（> 1e12，自动 `/1000`）
-- ISO 字符串（`new Date(str).getTime() / 1000`）
+- Unix 毫秒（> 1e12，自动 /1000）
+- ISO 字符串：**无时区标识时追加 `Z` 强制按 UTC 解析**（Lock Bot occupancy API 返回 UTC 时间但不带时区标识）
+
+### 有效槽索引
+
+```
+nowIdx = hours * 12 + Math.floor(minutes / 5)   // 客户端当前时间槽
+effectiveIdx = Math.max(0, nowIdx - 1)           // 回退一个槽
+```
+
+Monquery 数据有 0-5 分钟延迟，`nowIdx` 指向的槽数据尚未到达。**所有利用率读取统一使用 `effectiveIdx`**，避免读到未填充的 0 值导致误判 FREE。
 
 ### 节点状态判定
-```js
-// 双阈值：XPU 或显存任一 ≥ 10% → BUSY
-status = (currentMemUtil >= 10 || currentUtil >= 10) ? 'BUSY' : 'FREE'
+
+逐卡判定 8 张卡在 `effectiveIdx` 槽的利用率，阈值 **10%**（XPU 使用率 或 显存占用率）：
+
 ```
+逐卡：cardMemUtils[c][effectiveIdx] >= 10 || cardUtils[c][effectiveIdx] >= 10 → 该卡 BUSY
+节点：busyCards == 0 → FREE / busyCards == 8 → BUSY / 其他 → PARTIAL
+bdc 节点（无 Monquery）：hasActiveLock ? BUSY : FREE
+```
+
+### 统计栏卡片规则
+
+6 张统计卡片，分类规则：
+
+| 卡片 | 有 Monquery 数据的节点 | 无 Monquery 的节点 (bdc) |
+|------|---------------------|------------------------|
+| **BUSY 节点** | busyCards > 0 | hasActiveLock → BUSY |
+| **BUSY 卡数** | memUtil≥10 或 util≥10 逐卡判定 | hasActiveLock → 8，否则 0 |
+| **LOCKED 节点** | hasActiveLock | hasActiveLock |
+| **LOCKED 卡数** | cardHasActiveLock[c] 逐卡求和 | cardHasActiveLock[c] 逐卡求和 |
+
+关键区分：**BUSY = 实际使用**（利用率），**LOCKED = Lock Bot 锁**。有监控数据的节点两者独立统计；bdc 节点无法获取利用率，BUSY = LOCKED。
+
+### Lock Bot 锁判定
+
+```
+hasActiveLock        → 节点是否有活跃锁（任一卡或整机）
+cardHasActiveLock[c] → 第 c 张卡是否有活跃锁
+
+DEVICE bot：逐卡 dev.status !== 'idle' && current_users.length > 0
+            hasActiveLock = 任一卡为 true
+NODE bot：  整机 state.status !== 'idle' && current_users.length > 0
+            cardHasActiveLock 全部 8 卡填相同值
+```
+
+### 利用率颜色阈值
+
+```
+utilClass(val, hasData):
+  val >= 50 → high（红色）  // 高负载
+  val >= 20 → mid（橙色）   // 中等负载
+  val < 20  → low（绿色）   // 低负载
+  !hasData  → nodata（灰色）// 无数据
 
 ### 多 Bot 合并策略
 - 登录后拉取用户所有 Bot
@@ -226,7 +274,7 @@ loadAllData():
 ```js
 deriveMemOccupations(memUtil288):
   逐槽扫描，显存 ≥ 10% 视为占用，连续占用槽合并为一条记录
-  用于在无 Lock Bot 锁时推断实际使用情况
+  用于在无 Lock Bot 锁时推断实际使用情况（当前用于卡片展开视图）
 ```
 
 ## 部署

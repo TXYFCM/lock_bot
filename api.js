@@ -93,7 +93,7 @@ export async function fetchLockBotOccupancy(botId, date, token) {
 }
 
 /**
- * 批量查询 34 个节点的监控数据
+ * 批量查询 44 个节点的监控数据
  * @param {string} start - 起始时间 YYYYMMDDHHmmss
  * @param {string} end   - 结束时间 YYYYMMDDHHmmss
  * @returns {Promise<Array>} monquery data[] 数组
