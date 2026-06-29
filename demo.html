@@ -136,7 +136,7 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 <body>
 
 <!-- ====== Login Form ====== -->
-<div id="login-form" class="login-container">
+<div id="login-form" class="login-container" style="display:none">
   <h1>开发机集群资源监控</h1>
   <div class="login-card">
     <h2>Lock Bot 登录</h2>
@@ -149,8 +149,11 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 </div>
 
 <!-- ====== Dashboard ====== -->
-<div id="dashboard" style="display:none">
-  <h1>开发机集群资源监控</h1>
+<div id="dashboard" style="display:block">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <h1 style="margin:0">开发机集群资源监控</h1>
+  </div>
+  <div id="loading-msg" style="text-align:center;padding:60px;color:#64748b;font-size:15px;">正在加载…</div>
   <div class="stats-bar" id="stats-bar"></div>
   <div class="status-bar" id="status-bar" style="display:none"></div>
   <div class="filters">
@@ -276,8 +279,7 @@ async function handleLogin() {
 
     allBots = bots;
     saveSession();
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('loading-msg').remove();
 
     // 首次加载
     const status = await loadAllData();
@@ -290,8 +292,7 @@ async function handleLogin() {
     // 认证成功但数据拉取失败 → 仍然进入仪表盘，显示错误状态
     if (token) {
       saveSession();
-      document.getElementById('login-form').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('loading-msg').remove();
       renderStatusBar({
         lockBot: { ok: false, failedBotIds: [0], totalBots: 0 },
         monquery: { ok: false, errorMessage: err.message },
@@ -518,13 +519,20 @@ document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleLogin();
 });
 
-// 错误覆盖层按钮
-document.getElementById('error-retry-btn').addEventListener('click', () => {
-  hideErrorOverlay();
-  consecutiveFailures = 0;
-  loadAllData().then(status => renderStatusBar(status));
+// ---- 页面内刷新（状态栏的刷新按钮是动态渲染的，用事件委托） ----
+document.getElementById('status-bar').addEventListener('click', async (e) => {
+  const btn = e.target.closest('#status-refresh-btn');
+  if (!btn) return;
+  e.preventDefault();
+  btn.textContent = '↻ 刷新中…';
+  btn.disabled = true;
+  try {
+    await loadAllData();
+  } catch (err) { /* loadAllData 内部已处理 */ }
 });
-document.getElementById('error-logout-btn').addEventListener('click', () => {
+
+// ---- 退出登录 ----
+function doLogout() {
   hideErrorOverlay();
   consecutiveFailures = 0;
   clearSession();
@@ -533,32 +541,59 @@ document.getElementById('error-logout-btn').addEventListener('click', () => {
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
   if (nowLineTimer) { clearInterval(nowLineTimer); nowLineTimer = null; }
   document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('login-form').style.display = 'flex';
+  document.getElementById('login-form').style.display = '';
   document.getElementById('status-bar').style.display = 'none';
+}
+
+// 错误覆盖层按钮
+document.getElementById('error-retry-btn').addEventListener('click', () => {
+  hideErrorOverlay();
+  consecutiveFailures = 0;
+  loadAllData().then(status => renderStatusBar(status));
 });
+document.getElementById('error-logout-btn').addEventListener('click', doLogout);
 
-// ---- 页面加载时自动恢复会话 ----
-(async function autoRestore() {
+// ---- 页面加载时自动登录 ----
+(async function autoLogin() {
   const saved = restoreSession();
-  if (!saved || !saved.token) return;
-  console.log('Restoring session…');
-  document.getElementById('login-username').value = saved.username || '';
+  if (saved && saved.token) {
+    console.log('Restoring session…');
+    try {
+      token = saved.token;
+      const bots = await fetchLockBotList(token);
+      if (bots && bots.length) {
+        allBots = bots;
+        document.getElementById('loading-msg').remove();
+        const status = await loadAllData();
+        renderStatusBar(status);
+        startAutoRefresh();
+        startNowLineTimer();
+        return;
+      }
+    } catch (e) { console.error('Session restore failed:', e); }
+    clearSession();
+    token = null;
+  }
 
+  // 无有效 session → 自动用默认账号登录
+  console.log('Auto-login with default account…');
   try {
-    token = saved.token;
+    token = await loginLockBot('admin', 'admin123');
     const bots = await fetchLockBotList(token);
-    if (!bots || !bots.length) { clearSession(); return; }
+    if (!bots || !bots.length) throw new Error('无可用 Bot');
     allBots = bots;
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+    saveSession();
+    document.getElementById('loading-msg').remove();
     const status = await loadAllData();
     renderStatusBar(status);
     startAutoRefresh();
     startNowLineTimer();
   } catch (e) {
-    console.error('Session restore failed:', e);
-    clearSession();
-    token = null;
+    console.error('Auto-login failed:', e);
+    // 自动登录失败 → 隐藏仪表盘，显示登录表单
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('login-form').style.display = '';
+    document.getElementById('login-error').textContent = '自动登录失败，请手动输入账号密码';
   }
 })();
 
@@ -570,7 +605,7 @@ function renderStats() {
   let lockedNodes = 0, lockedCards = 0;
   for (const node of nodes) {
     if (node.status === 'FREE') freeNodes++;
-    else busyNodes++; // BUSY / PARTIAL 都是非空闲
+    else if (node.status === 'BUSY') busyNodes++;
     if (node.hasActiveLock) lockedNodes++;
     for (let c = 0; c < 8; c++) {
       if (node.hasMonqueryData) {
@@ -618,7 +653,7 @@ function renderStatusBar(status) {
     <span class="status-dot"></span>
     <span class="status-text">${text}</span>
     <span class="status-timestamp">更新于 ${timeStr}</span>
-    <button class="status-retry" title="手动刷新" onclick="location.reload()">&#x21bb; 刷新</button>
+    <button class="status-retry" id="status-refresh-btn" title="原地刷新">&#x21bb; 刷新</button>
   `;
   bar.style.display = 'flex';
 }

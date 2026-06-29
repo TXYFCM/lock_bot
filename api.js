@@ -5,14 +5,21 @@
 // 直接改为内网地址也可（如果网络/CORS 条件允许）
 const MONQUERY_BASE = '/monquery';
 const LOCKBOT_BASE = '/lockbot';
-const CLUSTER = 'wxtky02-p800-backup-8nic-vd';
 
-// 44 个有监控数据的节点（排除 node13, node14, node17, node33, node36）
+// 两批节点使用不同的 namespace
+const CLUSTER_BACKUP = 'wxtky02-p800-backup-8nic-vd';
+const CLUSTER_NON_BACKUP = 'wxtky02-p800-8nic-vd';
+
+// 非 backup namespace 的节点
+const NON_BACKUP_NODES = [32, 34, 35, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51];
+
+// 有监控数据的节点（排除 node13, node14, node17 为故障机）
 const MONITORED_NODES = Array.from({ length: 51 }, (_, i) => i + 1)
-  .filter(n => ![13, 14, 17, 36].includes(n));
+  .filter(n => ![13, 14, 17].includes(n));
 
 function buildNamespace(nodeNum) {
-  return `${CLUSTER}-node${nodeNum}.wxtky02`;
+  const cluster = NON_BACKUP_NODES.includes(nodeNum) ? CLUSTER_NON_BACKUP : CLUSTER_BACKUP;
+  return `${cluster}-node${nodeNum}.wxtky02`;
 }
 
 // 17 个核心指标
@@ -119,4 +126,4 @@ export function isAbortError(err) {
   return err && err.name === 'AbortError';
 }
 
-export { MONITORED_NODES, MONQUERY_ITEMS, CLUSTER };
+export { MONITORED_NODES, MONQUERY_ITEMS };

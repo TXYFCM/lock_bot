@@ -61,16 +61,67 @@ function fillUtilArray(series) {
  * 构建占用时间段（5 分钟槽索引范围）
  * 返回 { start, end, user }，两端 clamp 到 [0, SLOT_COUNT-1]
  */
+/**
+ * 将任意格式时间戳归一化为 Unix 秒
+ * 支持: Unix秒（<=1e12）、Unix毫秒（>1e12）、ISO字符串
+ * 解析失败返回 0
+ */
+function normalizeToUnixSec(raw) {
+  if (raw == null) return 0;
+  if (typeof raw === 'number') {
+    return raw > 1e12 ? Math.floor(raw / 1000) : raw;
+  }
+  const str = String(raw);
+  if (/^\d+$/.test(str)) {
+    const n = parseInt(str, 10);
+    return n > 1e12 ? Math.floor(n / 1000) : n;
+  }
+  let dateStr = str;
+  if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr.trim())) dateStr = str + 'Z';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 0 : Math.floor(d.getTime() / 1000);
+}
+
+/**
+ * 合并重叠/相邻的占用区间，避免时间线上视觉堆叠
+ * 同用户相邻（gap ≤ 1 槽）也合并，视为同一次连续占用
+ */
+function mergeOverlappingOccupations(occs) {
+  if (!occs || occs.length <= 1) return occs;
+  // 按起始槽排序
+  const sorted = [...occs].sort((a, b) => a.start - b.start);
+  const merged = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1];
+    const cur = sorted[i];
+    // 重叠或紧邻（gap ≤ 1 槽 = 5 分钟）
+    if (cur.start <= prev.end + 1) {
+      prev.end = Math.max(prev.end, cur.end);
+      // 合并用户名
+      const users = new Set(prev.user.split(', ').filter(Boolean));
+      for (const u of (cur.user || '').split(', ').filter(Boolean)) users.add(u);
+      prev.user = [...users].join(', ');
+    } else {
+      merged.push(cur);
+    }
+  }
+  return merged;
+}
+
 function buildOccupationRange(startTime, duration, userId) {
-  const start = Math.max(0, Math.min(SLOT_COUNT - 1, toSlotIndex(startTime)));
-  const end = Math.max(0, Math.min(SLOT_COUNT - 1, toSlotIndex(startTime + duration)));
+  const startSec = normalizeToUnixSec(startTime);
+  const endSec = startSec + (Number.isFinite(duration) ? duration : 0);
+  const start = Math.max(0, Math.min(SLOT_COUNT - 1, toSlotIndex(startSec)));
+  let end = Math.max(0, Math.min(SLOT_COUNT - 1, toSlotIndex(endSec)));
+  // toSlotIndex 无日期概念，end 可能因跨天回绕到 < start（负宽度），此时钳到当天末尾
+  if (end <= start) end = SLOT_COUNT - 1;
   return { start, end, user: userId };
 }
 
 /**
  * 时间戳 → 北京时间 5 分钟槽索引 (0-287)
  * 统一走 toSlotIndex（Unix 秒），保证时区处理一致
- * 支持: Unix秒、Unix毫秒、ISO字符串（UTC/带时区/无时区均正确）
+ * 支持: Unix秒、Unix毫秒、ISO字符串（UTC/带时区/无时区均正确，无时区按北京时间解析）
  */
 function parseSlotFromTimestamp(raw) {
   if (raw == null) return 0;
@@ -85,7 +136,7 @@ function parseSlotFromTimestamp(raw) {
       if (ts > 1e12) ts = Math.floor(ts / 1000);
     } else {
       // ISO 时间字符串 → Date 解析 → Unix 秒，再走 toSlotIndex
-      // 无时区标识的字符串强制按 UTC 解析（避免服务器本地时区干扰）
+      // Lock Bot occupancy API 返回 UTC 时间
       let dateStr = str;
       if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr.trim())) {
         dateStr = str + 'Z';
@@ -300,6 +351,9 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       }
     }
 
+    // 检查 Monquery 数据是否实质性存在（namespace 存在但指标全 null 视为无数据）
+    const hasMonqueryData = !!nodeItems && nodeItems['XPU_AVERAGE_UTILIZATION'] !== null;
+
     // 用最新已完成槽代替当前进行中槽（Monquery 数据有 0-5min 延迟，nowIdx 可能指向未填充的槽）
     const effectiveIdx = Math.max(0, nowIdx - 1);
     const currentUtil = avgUtil[effectiveIdx];
@@ -316,6 +370,12 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
     // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
     if (!nodeItems) {
       nodeStatus = hasActiveLock ? 'BUSY' : 'FREE';
+    }
+
+    // ---- 合并重叠的占用区间（避免时间线上视觉堆叠） ----
+    occupations = mergeOverlappingOccupations(occupations);
+    for (let c = 0; c < CARD_COUNT; c++) {
+      cardOccupations[c] = mergeOverlappingOccupations(cardOccupations[c]);
     }
 
     // ---- 从显存数据推导每张卡的实际占用时段 ----
@@ -336,7 +396,7 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       cardOccupations,
       cardMemOccupations,
       botType,
-      hasMonqueryData: !!nodeItems,
+      hasMonqueryData,
       hasActiveLock,
       cardCount,
       cardHasActiveLock,
