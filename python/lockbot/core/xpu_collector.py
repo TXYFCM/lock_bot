@@ -9,9 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 CardUsage = namedtuple("CardUsage", ["util", "mem", "container"])  # per GPU card; util/mem: float|None (%)
 # util/mem are the NODE AVERAGE (used by NODE bot, sort key, summary counts); per_card holds the
 # per-card breakdown (DEVICE bot mixed-lock rendering). per_card defaults to None for back-compat.
-# NOTE: per-card container is currently best-effort node-level (same container on every card, blanked
-# per-card below the mem threshold). The xpu-smi Processes table's first column IS the card index, so a
-# true pid->card->container mapping is feasible later; only _collect_one's per_card fill would change.
+# per_card[i].container is the TRUE per-card container (the xpu-smi Processes table's first column is
+# the card index; the remote script maps each card to its max-memory process's container). The
+# node-level NodeUsage.container stays the whole-node max-mem PID value, used only by the NODE bot.
 NodeUsage = namedtuple("NodeUsage", ["util", "mem", "container", "per_card"])
 NodeUsage.__new__.__defaults__ = (None,)  # per_card optional
 
@@ -27,6 +27,8 @@ _SMI_M_BEGIN = "__LOCKBOT_XPU_SMI_M_BEGIN__"
 _SMI_M_END = "__LOCKBOT_XPU_SMI_M_END__"
 _CONTAINER_BEGIN = "__LOCKBOT_CONTAINER_BEGIN__"
 _CONTAINER_END = "__LOCKBOT_CONTAINER_END__"
+_CARD_CONTAINER_BEGIN = "__LOCKBOT_CARD_CONTAINER_BEGIN__"
+_CARD_CONTAINER_END = "__LOCKBOT_CARD_CONTAINER_END__"
 
 
 def _parse_pid(xpu_output: str) -> str | None:
@@ -156,6 +158,41 @@ if [ "$smi_rc" -eq 0 ] && ! printf '%s\n' "$smi_output" | grep -q "No running pr
         fi
     fi
 fi
+card_containers=""
+if [ "$smi_rc" -eq 0 ] && ! printf '%s\n' "$smi_output" | grep -q "No running processes found"; then
+    card_pids=$(printf '%s\n' "$smi_output" \\
+        | sed -e 's/^[[:space:]]*|//' -e 's/|[[:space:]]*$//' \\
+        | awk '$2=="N/A" && $3=="N/A" && $4 ~ /^[0-9]+$/ {{
+                 card=$1+0; pid=$4; mem=$NF; gsub(/MiB/,"",mem); mem=mem+0;
+                 if (!(card in best) || mem>best[card]) {{ best[card]=mem; bpid[card]=pid }}
+               }}
+               END {{ for (c in bpid) print c, bpid[c] }}' | sort -n)
+    seen_pids=""
+    while read -r card pid; do
+        [ -z "$pid" ] && continue
+        # Reuse a previously resolved pid->container (one docker ps per distinct pid).
+        cached=$(printf '%s\n' "$seen_pids" | awk -v p="$pid" '$1==p {{print "1"; exit}}')
+        cname=$(printf '%s\n' "$seen_pids" | awk -v p="$pid" '$1==p {{$1=""; sub(/^ /,""); print; exit}}')
+        if [ -z "$cached" ]; then
+            cname=""
+            if [ -r "/proc/$pid/cgroup" ]; then
+                cg_line=$(grep -E 'docker|containerd' "/proc/$pid/cgroup" 2>/dev/null | head -n 1)
+                ccid=$(printf '%s\n' "$cg_line" \\
+                    | sed -E 's#.*(docker[-/]?|containerd[-/]?)([0-9a-f]{{7,64}}).*#\\2#' | cut -c1-7)
+                if [ -n "$ccid" ]; then
+                    cname=$(docker ps --format '{{{{.ID}}}} {{{{.Names}}}}' 2>/dev/null \\
+                        | awk -v cid="$ccid" '$1 ~ "^" cid {{print $2; exit}}')
+                fi
+            fi
+            seen_pids=$(printf '%s\n%s %s' "$seen_pids" "$pid" "$cname")
+        fi
+        if [ -n "$cname" ]; then
+            card_containers=$(printf '%s\n%s %s' "$card_containers" "$card" "$cname")
+        fi
+    done <<EOF_CARD_PIDS
+$card_pids
+EOF_CARD_PIDS
+fi
 printf '%s\n' '{_SMI_BEGIN}'
 printf '%s\n' "$smi_output"
 printf '%s\n' '{_SMI_END}'
@@ -165,6 +202,9 @@ printf '%s\n' '{_SMI_M_END}'
 printf '%s\n' '{_CONTAINER_BEGIN}'
 printf '%s\n' "$container"
 printf '%s\n' '{_CONTAINER_END}'
+printf '%s\n' '{_CARD_CONTAINER_BEGIN}'
+printf '%s\n' "$card_containers"
+printf '%s\n' '{_CARD_CONTAINER_END}'
 if [ "$smi_rc" -ne 0 ] || [ "$smi_m_rc" -ne 0 ]; then
     exit 1
 fi
@@ -197,13 +237,30 @@ def _extract_section(output: str, begin: str, end: str) -> str | None:
     return output[start:finish]
 
 
-def _split_remote_output(output: str) -> tuple[str, str, str] | None:
+def _split_remote_output(output: str) -> tuple[str, str, str, str] | None:
     smi = _extract_section(output, _SMI_BEGIN, _SMI_END)
     smi_m = _extract_section(output, _SMI_M_BEGIN, _SMI_M_END)
     container = _extract_section(output, _CONTAINER_BEGIN, _CONTAINER_END)
     if smi is None or smi_m is None or container is None:
         return None
-    return smi, smi_m, container.strip()
+    card_map = _extract_section(output, _CARD_CONTAINER_BEGIN, _CARD_CONTAINER_END)
+    return smi, smi_m, container.strip(), (card_map or "")
+
+
+def _parse_card_containers(section: str) -> dict[int, str]:
+    """Parse '<card_index> <container>' lines into {card_index: container}.
+
+    Blank/malformed lines are skipped; the last entry wins for a duplicate card index.
+    """
+    out: dict[int, str] = {}
+    for line in section.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2:
+            continue
+        idx_str, name = parts[0], parts[1].strip()
+        if idx_str.isdigit() and name:
+            out[int(idx_str)] = name
+    return out
 
 
 def _resolve_container(ip: str, user: str, pid: str, timeout: int) -> str:
@@ -233,18 +290,22 @@ def _collect_one(ip: str, user: str, timeout: int, container_mem_threshold: floa
         return _FAILED
     if parts is None:
         return _FAILED
-    _smi, smi_m, container = parts
+    _smi, smi_m, container, card_section = parts
     mem = _parse_mem(smi_m)
     if mem is not None and mem < container_mem_threshold:
         container = ""
     cards = _parse_cards(smi_m)
-    # Per-card container is best-effort node-level for now: every card carries the node's single
-    # resolved container, blanked per-card below the mem threshold. util/mem ARE genuinely per-card.
-    # A true pid->card->container mapping is feasible later (the xpu-smi Processes table's first
-    # column is the card index); only this per_card fill would need to change, not the renderer.
+    # True per-card containers: the remote script maps each card index to the container of its
+    # max-memory process. A card at/above the mem threshold takes its own mapped container (blank
+    # when the remote couldn't resolve it — we intentionally do NOT fall back to the node-level
+    # container, which would re-introduce the "all cards share one container" bug). util/mem are
+    # genuinely per-card. NodeUsage.container stays the node-level (max-mem PID) value for NODE.
+    card_containers = _parse_card_containers(card_section)
     per_card = [
-        c._replace(container=(container if (c.mem is not None and c.mem >= container_mem_threshold) else ""))
-        for c in cards
+        c._replace(
+            container=(card_containers.get(i, "") if (c.mem is not None and c.mem >= container_mem_threshold) else "")
+        )
+        for i, c in enumerate(cards)
     ]
     return NodeUsage(util=_parse_util(smi_m), mem=mem, container=container, per_card=per_card)
 

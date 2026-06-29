@@ -128,7 +128,8 @@ def test_util_per_group_when_mixed():
 
 
 def test_single_owner_whole_node_averaged():
-    # Whole node locked by one user (one group) -> averaged node-level cells, util only on first row.
+    # Whole node locked by one user (one group) -> averaged node-level util/mem, util only on
+    # first row. Container column lists per-card deduped containers (here both cards share "ctr").
     state = {
         "node1": [
             {
@@ -162,7 +163,49 @@ def test_single_owner_whole_node_averaged():
     # Single group -> node average (50.0/60.0), shown once; per-card values do NOT appear.
     assert out.count("50.0%/60.0%") == 1
     assert "10.0%/20.0%" not in out
+    # Per-card container dedupes to a single "ctr" cell.
     assert out.count("| ctr |") == 1
+
+
+def test_uniform_node_shows_single_max_mem_container():
+    # Whole node by one user, two cards on DIFFERENT containers -> the single group's container
+    # cell shows ONLY the highest-memory card's container (scenario 2/5: one container per row,
+    # no <br> list). util/mem stay the node average (shown once).
+    state = {
+        "node1": [
+            {
+                "dev_id": 0,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            },
+            {
+                "dev_id": 1,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            },
+        ]
+    }
+    out = build_device_query(
+        state,
+        None,
+        _config(),
+        node_filter="node1",
+        xpu_usage={
+            "node1": NodeUsage(
+                util=50.0,
+                mem=60.0,
+                container="ctrA",
+                per_card=[CardUsage(40.0, 50.0, "ctrA"), CardUsage(60.0, 70.0, "ctrB")],
+            )
+        },
+    )
+    # card1 (mem 70) > card0 (mem 50) -> show ctrB only; no <br> multi-container list.
+    assert "| ctrB |" in out
+    assert "ctrA<br>ctrB" not in out
+    assert "<br>" not in out
+    assert out.count("50.0%/60.0%") == 1
 
 
 def test_mixed_lockers_per_group_xpu():
@@ -230,15 +273,18 @@ def test_mixed_lockers_per_group_xpu():
     # per-group XPU%/MEM%
     assert "80.0%/70.0%" in u1_row
     assert "5.0%/3.0%" in u2_row
-    # node status badge only on the first data row (u1's), blank on u2's
-    assert "</font>" in u1_row  # status badge present
-    assert "BUSY" in u1_row or "FREE" in u1_row
-    assert "BUSY" not in u2_row and "FREE" not in u2_row
-    # container ctrA appears for u1's group only
+    # Per-group status badge on BOTH rows (scenario 3). u1's high-mem group -> BUSY;
+    # u2's low-mem group (avg 3 <= threshold 10) -> FREE.
+    assert "BUSY" in u1_row
+    assert "FREE" in u2_row
+    # container ctrA (max-mem card) appears for u1's group; u2's group has no container -> "--"
     assert "ctrA" in u1_row
+    assert "| -- |" in u2_row
 
 
-def test_shared_lock_status_only_on_device_row():
+def test_shared_lock_repeats_each_user():
+    # Shared lock (slock): one card dev0 held by u1 + u2. Each shared user gets a FULL row
+    # repeating dev0 + status badge + XPU + container (scenario 6).
     state = {
         "node1": [
             {
@@ -257,10 +303,107 @@ def test_shared_lock_status_only_on_device_row():
         None,
         _config(),
         node_filter="node1",
-        xpu_usage={"node1": NodeUsage(util=10.0, mem=20.0, container="c")},
+        xpu_usage={"node1": NodeUsage(util=45.0, mem=55.0, container="shared_ctr")},
     )
     data_rows = [line for line in out.splitlines() if "u1" in line or "u2" in line]
-    assert "dev0" in data_rows[0]
-    assert data_rows[0].count("BUSY") == 1
-    assert "dev0" not in data_rows[1]
-    assert "BUSY" not in data_rows[1]
+    u1_row = next(r for r in data_rows if "u1" in r)
+    u2_row = next(r for r in data_rows if "u2" in r)
+    # Both rows repeat dev0, the BUSY badge, the XPU cell and the container name.
+    for row in (u1_row, u2_row):
+        assert "dev0" in row
+        assert "BUSY" in row
+        assert "45.0%/55.0%" in row
+        assert "shared_ctr" in row
+
+
+def test_mixed_lockers_both_rows_show_badge():
+    # Two users each lock half the node (dev0-3 / dev4-7), both halves high-mem -> BOTH lock
+    # rows show a BUSY badge (scenario 3).
+    state = {
+        "node1": [
+            {
+                "dev_id": i,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1" if i < 4 else "u2", "start_time": 0, "duration": 999999999999}],
+            }
+            for i in range(8)
+        ]
+    }
+    cfg = Config(
+        {
+            "BOT_TYPE": "DEVICE",
+            "CLUSTER_CONFIGS": {"node1": {"ip": "10.0.0.1", "devices": ["a800"] * 8}},
+            "QUERY_TIP": "",
+        }
+    )
+    out = build_device_query(
+        state,
+        None,
+        cfg,
+        node_filter="node1",
+        xpu_usage={
+            "node1": NodeUsage(
+                util=70.0,
+                mem=75.0,
+                container="job_a",
+                per_card=[CardUsage(70.0, 75.0, "job_a")] * 4 + [CardUsage(60.0, 65.0, "job_b")] * 4,
+            )
+        },
+    )
+    rows = [ln for ln in out.splitlines() if "u1" in ln or "u2" in ln]
+    u1_row = next(r for r in rows if "u1" in r)
+    u2_row = next(r for r in rows if "u2" in r)
+    assert "BUSY" in u1_row
+    assert "BUSY" in u2_row
+    assert "job_a" in u1_row
+    assert "job_b" in u2_row
+
+
+def test_partial_lock_idle_shows_free_and_dashes():
+    # dev0-1 locked & high-mem (BUSY), dev2-7 idle & 0% (FREE). Idle group's empty container
+    # renders as "--" (scenario 4).
+    state = {
+        "node1": [
+            {
+                "dev_id": 0,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            },
+            {
+                "dev_id": 1,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            },
+        ]
+        + [{"dev_id": i, "status": "idle", "dev_model": "a800", "current_users": []} for i in range(2, 8)]
+    }
+    cfg = Config(
+        {
+            "BOT_TYPE": "DEVICE",
+            "CLUSTER_CONFIGS": {"node1": {"ip": "10.0.0.1", "devices": ["a800"] * 8}},
+            "QUERY_TIP": "",
+        }
+    )
+    out = build_device_query(
+        state,
+        None,
+        cfg,
+        node_filter="node1",
+        xpu_usage={
+            "node1": NodeUsage(
+                util=30.0,
+                mem=32.0,
+                container="job_a",
+                per_card=[CardUsage(60.0, 65.0, "job_a")] * 2 + [CardUsage(0.0, 0.0, "")] * 6,
+            )
+        },
+    )
+    lock_row = next(ln for ln in out.splitlines() if "u1" in ln)
+    idle_row = next(ln for ln in out.splitlines() if "UNLOCK" in ln)
+    assert "BUSY" in lock_row
+    assert "FREE" in idle_row
+    # idle group has no container -> "--"
+    assert "| -- |" in idle_row

@@ -55,6 +55,13 @@ def _md_row(*cells):
     return "| " + " | ".join(str(c) for c in cells) + " |\n"
 
 
+def _dev_range(dev_ids):
+    """Format a list of card indices as 'devN' or 'devA-B' (DEVICE 卡状态 cell)."""
+    if not dev_ids:
+        return ""
+    return f"dev{dev_ids[0]}-{dev_ids[-1]}" if len(dev_ids) > 1 else f"dev{dev_ids[0]}"
+
+
 def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=None):
     """Build full markdown query text for a DEVICE bot."""
     if node_filter is not None:
@@ -92,7 +99,6 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         entries.append((node_key, devs, rem, is_mine, cat, order))
 
     for node_key, devs, _rem, _mine, cat, _order in sorted(entries, key=_node_sort_key):
-        status_badge = _STATUS_BADGE[cat]
         grouped_usage = group_locked_devices(devs)
         shown = set()
         for _, dev_ids in grouped_usage:
@@ -106,9 +112,16 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         # XPU%/MEM% + container are shown per group (averaged over that group's cards).
         group_count = sum(1 for _is_idle, f in rows if f["dev"])
         uniform = group_count <= 1
+        # Union of all dev indices rendered for this node (used by the uniform branch's
+        # max-mem container cell, where a single row stands for the whole node).
+        all_dev_ids = sorted({i for _is_idle, f in rows for i in f["dev_ids"]})
+        # Shared-lock users on one card produce multiple rows with the same dev_ids but a blank
+        # dev cell on the non-first user (device_usage_utils). We re-fill dev/badge/XPU/container
+        # on every such row so each shared user shows its full row (scenario 6).
         first_row = True
         for is_idle, fields in rows:
-            dev_cell = fields["dev"]
+            dev_ids = fields["dev_ids"]
+            dev_cell = fields["dev"] or _dev_range(dev_ids)
             if is_idle:
                 user_cell = _UNLOCK
                 dur_cell = "--"
@@ -117,16 +130,23 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                 user_cell = f"{fields['user']}（{mode}）".strip()
                 dur_cell = fields["dur"] or "--"
             node_cell = _node_label(cluster_configs, node_key) if first_row else ""
-            node_status_cell = status_badge if first_row else ""
+            # Per-group status badge from this group's card memory (scenario 3/4). Falls back
+            # to the node-level category when usage/per_card is unavailable (incl. NA nodes).
+            group_cat = _group_mem_category(usage, dev_ids, threshold, cat) if xpu_on else cat
+            node_status_cell = _STATUS_BADGE[group_cat]
             # Column order: IP | lock同学 | 节点状态 | 卡状态 | 剩余时间
             cells = [node_cell, user_cell, node_status_cell, dev_cell, dur_cell]
             if xpu_on:
                 if uniform:
-                    util_cell, container_cell = _format_xpu_cells(usage) if first_row else ("", "")
+                    util_cell = _format_xpu_cells(usage)[0]
+                    container_cell = _max_mem_container(usage, all_dev_ids)
                 else:
-                    util_cell, container_cell = (
-                        _group_xpu_cells(usage, fields["dev_ids"]) if fields["dev"] else ("", "")
-                    )
+                    util_cell = _group_xpu_cells(usage, dev_ids)[0]
+                    container_cell = _max_mem_container(usage, dev_ids)
+                # Empty container -> "--", except on NA (collection-failed) nodes where the
+                # container column stays blank alongside the N/A util cell (scenario 7).
+                if not container_cell and group_cat != "na":
+                    container_cell = "--"
                 cells = [*cells, util_cell, container_cell]
             lines.append(_md_row(*cells))
             first_row = False
@@ -273,6 +293,50 @@ def _group_xpu_cells(usage, dev_ids):
     m = f"{round(sum(mems) / len(mems), 2)}%" if mems else "N/A"
     container = next((c.container for c in cards if c.container), "")
     return f"{u}/{m}", container
+
+
+def _max_mem_container(usage, dev_ids):
+    """Container of the highest-memory card in a DEVICE card-index group.
+
+    Scenario 2/5: a node locked by one user shows a single container — the one on the
+    card consuming the most memory. Cards with no resolved container are skipped. When
+    per-card data exists but no card in the group has a container, returns "" (does NOT
+    borrow the node-level container, which would re-introduce the shared-container bug).
+    Falls back to ``usage.container`` only when ``per_card`` is entirely missing/out of range.
+
+    DEVICE-only — never call this from the NODE path.
+    """
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card or any(i >= len(per_card) for i in dev_ids):
+        return usage.container if usage is not None else ""
+    best_mem, best_ctr = None, ""
+    for i in dev_ids:
+        c = per_card[i]
+        if not c.container:
+            continue
+        mem = c.mem if c.mem is not None else -1.0
+        if best_mem is None or mem > best_mem:
+            best_mem, best_ctr = mem, c.container
+    return best_ctr
+
+
+def _group_mem_category(usage, dev_ids, threshold, fallback):
+    """Memory category ('free'/'busy'/'na') for a DEVICE card-index group.
+
+    Averages the per-card memory over ``dev_ids`` and classifies via ``_mem_category``,
+    so each rendered group gets its own status badge (scenario 3/4). Falls back to the
+    node-level ``fallback`` category when ``per_card`` is missing/out of range — which
+    also covers collection-failed nodes (fallback == 'na').
+
+    DEVICE-only — never call this from the NODE path.
+    """
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card or any(i >= len(per_card) for i in dev_ids):
+        return fallback
+    mems = [per_card[i].mem for i in dev_ids if per_card[i].mem is not None]
+    if not mems:
+        return fallback
+    return _mem_category(sum(mems) / len(mems), threshold)
 
 
 def _with_xpu(cells, usage, *, first_row, xpu_on):

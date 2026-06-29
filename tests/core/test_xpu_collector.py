@@ -4,6 +4,7 @@ from unittest import mock
 from lockbot.core.xpu_collector import (
     CardUsage,
     NodeUsage,
+    _parse_card_containers,
     _parse_cards,
     _parse_mem,
     _parse_pid,
@@ -13,7 +14,7 @@ from lockbot.core.xpu_collector import (
 )
 
 
-def _remote_output(smi, smi_m, container=""):
+def _remote_output(smi, smi_m, container="", card_containers=""):
     return "\n".join(
         [
             "__LOCKBOT_XPU_SMI_BEGIN__",
@@ -25,6 +26,9 @@ def _remote_output(smi, smi_m, container=""):
             "__LOCKBOT_CONTAINER_BEGIN__",
             container,
             "__LOCKBOT_CONTAINER_END__",
+            "__LOCKBOT_CARD_CONTAINER_BEGIN__",
+            card_containers,
+            "__LOCKBOT_CARD_CONTAINER_END__",
         ]
     )
 
@@ -86,10 +90,13 @@ def test_remote_probe_script_preserves_sed_backreference():
 
 def test_split_remote_output_parses_sections():
     smi_m = " ".join(["x"] * 17 + ["100", "200", "82"])
-    assert _split_remote_output(_remote_output("foo N/A N/A 12345 python", smi_m, "my_container")) == (
+    assert _split_remote_output(
+        _remote_output("foo N/A N/A 12345 python", smi_m, "my_container", "0 my_container")
+    ) == (
         "foo N/A N/A 12345 python",
         smi_m,
         "my_container",
+        "0 my_container",
     )
 
 
@@ -99,7 +106,21 @@ def test_split_remote_output_allows_empty_container():
         "No running processes found",
         smi_m,
         "",
+        "",
     )
+
+
+def test_parse_card_containers_maps_lines():
+    assert _parse_card_containers("0 ctrA\n1 ctrB\n7 ctrC") == {0: "ctrA", 1: "ctrB", 7: "ctrC"}
+
+
+def test_parse_card_containers_skips_blank_and_malformed():
+    section = "\n".join(["0 ctrA", "", "  ", "garbage", "notanint ctrX", "2 ctrB"])
+    assert _parse_card_containers(section) == {0: "ctrA", 2: "ctrB"}
+
+
+def test_parse_card_containers_empty_section_returns_empty():
+    assert _parse_card_containers("") == {}
 
 
 def test_split_remote_output_missing_section_returns_none():
@@ -136,7 +157,7 @@ def test_collect_one_busy_resolves_container():
     with mock.patch.object(
         xpu_collector,
         "_ssh_collect",
-        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "my_container"),
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "my_container", "0 my_container"),
     ) as collect:
         usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
     assert collect.call_count == 1
@@ -149,18 +170,70 @@ def test_collect_one_populates_per_card():
     from lockbot.core import xpu_collector
 
     line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
-    line1 = " ".join(["x"] * 17 + ["0", "200", "0"])  # mem 0% (below container threshold)
+    line1 = " ".join(["x"] * 17 + ["150", "200", "90"])  # mem 75%
     smi_m = "\n".join([line0, line1])
     with mock.patch.object(
         xpu_collector,
         "_ssh_collect",
-        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "my_container"),
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "ctrA", "0 ctrA\n1 ctrB"),
     ):
         usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
     assert usage.per_card is not None
     assert len(usage.per_card) == 2
-    # card0 has mem >= threshold -> node container; card1 below threshold -> blank
-    assert usage.per_card[0] == CardUsage(util=80.0, mem=50.0, container="my_container")
+    # Each card carries its OWN mapped container (genuinely per-card, may differ).
+    assert usage.per_card[0] == CardUsage(util=80.0, mem=50.0, container="ctrA")
+    assert usage.per_card[1] == CardUsage(util=90.0, mem=75.0, container="ctrB")
+
+
+def test_collect_one_per_card_blank_below_threshold():
+    from lockbot.core import xpu_collector
+
+    line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50% (>= threshold)
+    line1 = " ".join(["x"] * 17 + ["0", "200", "0"])  # mem 0% (below container threshold)
+    smi_m = "\n".join([line0, line1])
+    # Remote maps a container for card1 too, but the renderer-facing fill blanks it
+    # because card1's mem is below the threshold.
+    with mock.patch.object(
+        xpu_collector,
+        "_ssh_collect",
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "ctrA", "0 ctrA\n1 ctrB"),
+    ):
+        usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
+    assert usage.per_card[0].container == "ctrA"
+    assert usage.per_card[1].container == ""
+
+
+def test_collect_one_per_card_same_container_shared_pid():
+    from lockbot.core import xpu_collector
+
+    line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
+    line1 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
+    smi_m = "\n".join([line0, line1])
+    # Both cards resolve to the same container (e.g. one process spanning two cards).
+    with mock.patch.object(
+        xpu_collector,
+        "_ssh_collect",
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "shared", "0 shared\n1 shared"),
+    ):
+        usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
+    assert usage.per_card[0].container == "shared"
+    assert usage.per_card[1].container == "shared"
+
+
+def test_collect_one_per_card_blank_when_unmapped():
+    from lockbot.core import xpu_collector
+
+    line0 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
+    line1 = " ".join(["x"] * 17 + ["100", "200", "80"])  # mem 50%
+    smi_m = "\n".join([line0, line1])
+    # Only card0 has a mapping; card1 above threshold but unmapped -> blank (NO node fallback).
+    with mock.patch.object(
+        xpu_collector,
+        "_ssh_collect",
+        return_value=_remote_output("foo N/A N/A 12345 python", smi_m, "ctrA", "0 ctrA"),
+    ):
+        usage = xpu_collector._collect_one("10.0.0.1", "alice", 5)
+    assert usage.per_card[0].container == "ctrA"
     assert usage.per_card[1].container == ""
 
 
