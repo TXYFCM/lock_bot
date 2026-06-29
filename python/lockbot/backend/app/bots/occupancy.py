@@ -101,7 +101,7 @@ def query_occupancy(
         q = db.query(OccupancyRecord).filter(OccupancyRecord.bot_id == bot_id)
         if date_str:
             try:
-                day = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                day = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=8)))
             except ValueError:
                 return []
             next_day = day + timedelta(days=1)

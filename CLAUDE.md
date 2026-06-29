@@ -56,7 +56,7 @@ tmux kill-session -t lockbot 2>/dev/null
 # 3. Recreate it with the SAME env vars + command (substitute real secrets from step 1)
 tmux new-session -d -s lockbot 'export PATH="$HOME/.local/bin:$PATH" \
   && export JWT_SECRET="<...>" && export ENCRYPTION_KEY="<...>" \
-  && export DEV_MODE="true" && export DATA_DIR="/tmp/lockbot_data" \
+  && export DEV_MODE="true" && export DATA_DIR="/home/users/v_qiujie04/lock_bot/.data" \
   && export PYTHONPATH="/home/users/v_qiujie04/lock_bot/python" \
   && uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8875 2>&1 | tee /tmp/jieLockBot.log'
 
