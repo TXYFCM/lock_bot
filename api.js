@@ -100,23 +100,35 @@ export async function fetchLockBotOccupancy(botId, date, token) {
 }
 
 /**
- * 批量查询 44 个节点的监控数据
+ * 批量查询 48 个节点的监控数据（分 3 批并行，避免单次查询超时）
  * @param {string} start - 起始时间 YYYYMMDDHHmmss
  * @param {string} end   - 结束时间 YYYYMMDDHHmmss
  * @returns {Promise<Array>} monquery data[] 数组
  */
 export async function fetchMonqueryUtilization(start, end) {
-  const namespaces = MONITORED_NODES.map(buildNamespace).join(',');
   const items = MONQUERY_ITEMS.join(',');
-  const url = `${MONQUERY_BASE}/monquery/getHistoryitemdata` +
-    `?namespaces=${encodeURIComponent(namespaces)}` +
-    `&items=${encodeURIComponent(items)}` +
-    `&start=${start}&end=${end}&interval=300`;
-  const resp = await fetchWithTimeout(url);
-  if (!resp.ok) throw new Error(`Monquery fetch failed: ${resp.status}`);
-  const data = await resp.json();
-  if (!data.success) throw new Error(`Monquery error: ${data.message}`);
-  return data.data;
+  const BATCH_SIZE = 16;
+  const batches = [];
+  for (let i = 0; i < MONITORED_NODES.length; i += BATCH_SIZE) {
+    batches.push(MONITORED_NODES.slice(i, i + BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    batches.map(async (nodeNums) => {
+      const namespaces = nodeNums.map(buildNamespace).join(',');
+      const url = `${MONQUERY_BASE}/monquery/getHistoryitemdata` +
+        `?namespaces=${encodeURIComponent(namespaces)}` +
+        `&items=${encodeURIComponent(items)}` +
+        `&start=${start}&end=${end}&interval=300`;
+      const resp = await fetchWithTimeout(url);
+      if (!resp.ok) throw new Error(`Monquery fetch failed: ${resp.status}`);
+      const data = await resp.json();
+      if (!data.success) throw new Error(`Monquery error: ${data.message}`);
+      return data.data || [];
+    })
+  );
+
+  return results.flat();
 }
 
 /**

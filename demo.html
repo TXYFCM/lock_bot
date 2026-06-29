@@ -605,7 +605,7 @@ function renderStats() {
   let lockedNodes = 0, lockedCards = 0;
   for (const node of nodes) {
     if (node.status === 'FREE') freeNodes++;
-    else if (node.status === 'BUSY') busyNodes++;
+    else busyNodes++;
     if (node.hasActiveLock) lockedNodes++;
     for (let c = 0; c < 8; c++) {
       if (node.hasMonqueryData) {
