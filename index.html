@@ -99,6 +99,34 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .status-retry { cursor: pointer; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 10px; font-size: 11px; background: #fff; color: #64748b; transition: all .15s; }
 .status-retry:hover { border-color: #4f46e5; color: #4f46e5; }
 
+/* View Bar (type toggles + legend + status) */
+.view-bar { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; flex-wrap: wrap; }
+.type-toggles { display: flex; gap: 4px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
+.type-btn { padding: 4px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; background: transparent; color: #64748b; font-weight: 500; transition: all .15s; user-select: none; }
+.type-btn:hover { color: #1e293b; }
+.type-btn.active { background: #4f46e5; color: #fff; }
+.legend-items { display: flex; gap: 16px; align-items: center; }
+
+/* Average View */
+#average-view { margin-bottom: 16px; }
+.avg-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; font-size: 12px; color: #64748b; }
+.avg-controls label { font-weight: 500; }
+.avg-controls input[type="date"] { padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: "SF Mono","JetBrains Mono",monospace; color: #1e293b; background: #fff; outline: none; width: 120px; }
+.avg-controls input[type="date"]:focus { border-color: #4f46e5; }
+.window-toggles { display: flex; gap: 2px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
+.win-btn { padding: 3px 12px; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; background: transparent; color: #94a3b8; font-weight: 500; font-family: "SF Mono","JetBrains Mono",monospace; transition: all .15s; user-select: none; }
+.win-btn:hover { color: #1e293b; }
+.win-btn.active { background: #e2e8f0; color: #1e293b; }
+.charts-row { display: flex; flex-direction: column; gap: 16px; }
+.chart-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+.chart-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1e293b; }
+.chart-legend { display: flex; align-items: center; gap: 16px; font-size: 11px; margin-bottom: 8px; color: #64748b; }
+.chart-legend .legend-item { display: flex; align-items: center; gap: 6px; }
+.chart-legend .legend-line-solid { width: 16px; height: 2px; border-radius: 1px; }
+.chart-legend .legend-line-dash { width: 16px; height: 2px; border: none; border-radius: 1px; }
+.chart-wrap { position: relative; height: 310px; }
+.chart-wrap canvas { width: 100%; height: 100%; }
+
 /* Toast */
 .toast { position: fixed; top: 16px; right: 16px; background: #1e293b; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
 .toast.show { opacity: 1; }
@@ -176,26 +204,67 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
     <div class="stats-bar-row" id="stats-row-2"></div>
   </div>
   <div class="status-bar" id="status-bar" style="display:none"></div>
-  <div class="filters">
-    <label>状态：</label>
-    <span class="status-btn active" data-status="ALL">全部</span>
-    <span class="status-btn" data-status="FREE">FREE</span>
-    <span class="status-btn" data-status="PARTIAL">PARTIAL</span>
-    <span class="status-btn" data-status="BUSY">BUSY</span>
-    <input class="search-input" id="search" placeholder="搜索节点...">
-    <label>排序：</label>
-    <span class="status-btn" data-sort="util-desc">XPU利用率 ↓</span>
-    <span class="status-btn" data-sort="mem-desc">显存 ↓</span>
-  </div>
-  <div class="legend">
-    <div class="legend-item"><span class="legend-line" style="background:#4f46e5"></span><span>XPU 使用率</span></div>
 
-    <div class="legend-item"><span class="legend-line" style="background:#ea580c"></span><span>显存利用率</span></div>
-    <div class="legend-item"><span style="width:14px;height:14px;display:inline-block;border-radius:3px;background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.35)"></span><span>Lock Bot 锁记录</span></div>
-    <div class="legend-item"><span style="width:1px;height:14px;background:#dc2626;display:inline-block;"></span><span>当前时间</span></div>
+  <div class="view-bar">
+    <div class="type-toggles" id="type-toggles">
+      <span class="type-btn active" data-type="all">全部</span>
+      <span class="type-btn" data-type="personal">个人</span>
+    </div>
+    <div class="legend-items" id="legend-items" style="display:none">
+      <div class="legend-item"><span class="legend-line" style="background:#4f46e5"></span><span>XPU 使用率</span></div>
+      <div class="legend-item"><span class="legend-line" style="background:#ea580c"></span><span>显存利用率</span></div>
+      <div class="legend-item"><span style="width:14px;height:14px;display:inline-block;border-radius:3px;background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.35)"></span><span>Lock Bot 锁记录</span></div>
+      <div class="legend-item"><span style="width:1px;height:14px;background:#dc2626;display:inline-block;"></span><span>当前时间</span></div>
+    </div>
     <span id="status-mini" style="margin-left:auto;font-size:11px;display:flex;align-items:center;gap:6px;"></span>
   </div>
-  <div id="node-list" style="position:relative;padding-top:18px;"></div>
+
+  <div id="personal-view" style="display:none">
+    <div class="filters">
+      <label>状态：</label>
+      <span class="status-btn active" data-status="ALL">全部</span>
+      <span class="status-btn" data-status="FREE">FREE</span>
+      <span class="status-btn" data-status="PARTIAL">PARTIAL</span>
+      <span class="status-btn" data-status="BUSY">BUSY</span>
+      <input class="search-input" id="search" placeholder="搜索节点...">
+      <label>排序：</label>
+      <span class="status-btn" data-sort="util-desc">XPU利用率 ↓</span>
+      <span class="status-btn" data-sort="mem-desc">显存 ↓</span>
+    </div>
+    <div id="node-list" style="position:relative;padding-top:18px;"></div>
+  </div>
+
+  <!-- Average View -->
+  <div id="average-view">
+    <div class="avg-controls">
+      <label>日期</label>
+      <input type="date" id="avg-filter-date">
+      <div class="window-toggles" id="avg-window-toggles">
+        <span class="win-btn" data-window="1">5m</span>
+        <span class="win-btn active" data-window="2">10m</span>
+        <span class="win-btn" data-window="6">30m</span>
+        <span class="win-btn" data-window="12">1h</span>
+      </div>
+    </div>
+    <div class="charts-row" id="avg-charts-row">
+      <div class="chart-panel">
+        <div class="chart-panel-title">XPU 利用率</div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-line-solid" style="background:#7c3aed"></span><span>今日</span></div>
+          <div class="legend-item"><span class="legend-line-dash" style="background:repeating-linear-gradient(90deg, rgba(124,58,237,0.30) 0, rgba(124,58,237,0.30) 4px, transparent 4px, transparent 7px)"></span><span style="color:#94a3b8">昨日</span></div>
+        </div>
+        <div class="chart-wrap" id="avg-xpu-chart-wrap"><canvas id="avg-xpu-chart"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-title">显存 利用率</div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-line-solid" style="background:#ea580c"></span><span>今日</span></div>
+          <div class="legend-item"><span class="legend-line-dash" style="background:repeating-linear-gradient(90deg, rgba(234,88,12,0.30) 0, rgba(234,88,12,0.30) 4px, transparent 4px, transparent 7px)"></span><span style="color:#94a3b8">昨日</span></div>
+        </div>
+        <div class="chart-wrap" id="avg-mem-chart-wrap"><canvas id="avg-mem-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ====== Error Overlay ====== -->
@@ -216,7 +285,7 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { loginLockBot, fetchLockBotList, fetchLockBotState, fetchLockBotOccupancy, fetchMonqueryUtilization, isAbortError } from './api.js';
+import { loginLockBot, fetchLockBotList, fetchLockBotState, fetchLockBotOccupancy, fetchMonqueryUtilization, isAbortError, MONITORED_NODES } from './api.js';
 import { adaptNodeData } from './adapter.js';
 
 const SLOT_COUNT = 288; // 24h / 5min = 288 槽
@@ -236,6 +305,18 @@ let allBots = [];
 let consecutiveFailures = 0;
 let lastSuccessTime = null;
 
+// Average view state
+let viewType = 'all';  // 'all' | 'personal'
+let avgWindow = 2;
+let avgTodayXpuMA = [], avgTodayMemMA = [];
+let avgYestXpuMA = null, avgYestMemMA = null;
+let avgTodayNodes = [], avgYestNodes = [];
+let avgCutoffSlot = 287;
+let avgRefreshTimer = null;
+const AVG_MARGIN = { top: 10, right: 16, bottom: 20, left: 48 };
+const XPU_TICKS = [0, 5, 10, 15, 20, 25, 30, 35];
+const MEM_TICKS = [0, 10, 20, 30, 40, 50, 60, 70];
+
 // ---- 工具函数 ----
 
 function formatDateStart(d) {
@@ -253,6 +334,54 @@ function formatDateTime(d) {
   const min = String(d.getMinutes()).padStart(2, '0');
   const s = String(d.getSeconds()).padStart(2, '0');
   return `${y}${m}${day}${h}${min}${s}`;
+}
+
+function formatDateEnd(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}${m}${day}235959`;
+}
+
+function avgGetTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function avgGetSelectedDate() {
+  const v = document.getElementById('avg-filter-date').value;
+  return v ? new Date(v + 'T00:00:00') : new Date();
+}
+
+// ---- Average view data processing ----
+
+function processMonqueryData(monqueryData) {
+  if (!monqueryData) return [];
+  const dummyState = {};
+  for (const id of MONITORED_NODES) dummyState[`gpu-node-${String(id).padStart(2,'0')}`] = {};
+  return adaptNodeData(dummyState, monqueryData, 0, 'NODE', []).filter(n => n.hasMonqueryData);
+}
+
+function computeMA(nodes, windowSize) {
+  const n = nodes.filter(x => x.hasMonqueryData);
+  if (!n.length) return { xpu: new Array(SLOT_COUNT).fill(0), mem: new Array(SLOT_COUNT).fill(0) };
+
+  const xpuSlot = new Array(SLOT_COUNT).fill(0);
+  const memSlot = new Array(SLOT_COUNT).fill(0);
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    let xs = 0, ms = 0;
+    for (const node of n) { xs += node.avgUtil[i]; ms += node.avgMemUtil[i]; }
+    xpuSlot[i] = xs / n.length;
+    memSlot[i] = ms / n.length;
+  }
+
+  const xpuMA = new Array(SLOT_COUNT), memMA = new Array(SLOT_COUNT);
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const s = Math.max(0, i - windowSize + 1), cnt = i - s + 1;
+    let xs = 0, ms = 0;
+    for (let j = s; j <= i; j++) { xs += xpuSlot[j]; ms += memSlot[j]; }
+    xpuMA[i] = xs / cnt;
+    memMA[i] = ms / cnt;
+  }
+  return { xpu: xpuMA, mem: memMA };
 }
 
 // ---- 登录逻辑 ----
@@ -335,13 +464,20 @@ function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(async () => {
     if (document.hidden) return;
-    try {
-      const status = await loadAllData();
-      renderStatusBar(status);
-    } catch (e) {
-      if (!isAbortError(e)) {
-        console.error('Auto-refresh failed:', e);
-        showToast('数据刷新失败：' + e.message, 5000);
+    // Refresh active view
+    if (viewType === 'all') {
+      if (document.getElementById('avg-filter-date').value === avgGetTodayStr()) {
+        try { await avgLoadAndRender(); } catch(e) { console.error('Avg auto-refresh:', e); }
+      }
+    } else {
+      try {
+        const status = await loadAllData();
+        renderStatusBar(status);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          console.error('Auto-refresh failed:', e);
+          showToast('数据刷新失败：' + e.message, 5000);
+        }
       }
     }
   }, 60000);
@@ -548,7 +684,12 @@ document.addEventListener('click', async (e) => {
   btn.textContent = '↻ 刷新中…';
   btn.disabled = true;
   try {
-    await loadAllData();
+    if (viewType === 'all') {
+      await avgLoadAndRender();
+    } else {
+      const status = await loadAllData();
+      renderStatusBar(status);
+    }
   } catch (err) { /* loadAllData 内部已处理 */ }
 });
 
@@ -573,7 +714,12 @@ function doLogout() {
   clearSession();
   token = null;
   nodes = [];
+  avgTodayNodes = []; avgYestNodes = [];
+  avgTodayXpuMA = []; avgTodayMemMA = [];
+  avgYestXpuMA = null; avgYestMemMA = null;
+  avgHoverBound = { 'avg-xpu-chart': false, 'avg-mem-chart': false };
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (avgRefreshTimer) { clearInterval(avgRefreshTimer); avgRefreshTimer = null; }
   if (nowLineTimer) { clearInterval(nowLineTimer); nowLineTimer = null; }
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('login-form').style.display = '';
@@ -584,7 +730,11 @@ function doLogout() {
 document.getElementById('error-retry-btn').addEventListener('click', () => {
   hideErrorOverlay();
   consecutiveFailures = 0;
-  loadAllData().then(status => renderStatusBar(status));
+  if (viewType === 'all') {
+    avgLoadAndRender();
+  } else {
+    loadAllData().then(status => renderStatusBar(status));
+  }
 });
 document.getElementById('error-logout-btn').addEventListener('click', doLogout);
 
@@ -631,6 +781,78 @@ document.getElementById('error-logout-btn').addEventListener('click', doLogout);
     document.getElementById('login-error').textContent = '自动登录失败，请手动输入账号密码';
   }
 })();
+
+// ---- Average View: Init & Event Handlers ----
+
+// Init date picker
+document.getElementById('avg-filter-date').value = avgGetTodayStr();
+
+// Type toggle
+document.getElementById('type-toggles').addEventListener('click', (e) => {
+  const btn = e.target.closest('.type-btn');
+  if (!btn) return;
+  const type = btn.dataset.type;
+  if (type === viewType) return;
+
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  viewType = type;
+
+  if (type === 'all') {
+    document.getElementById('personal-view').style.display = 'none';
+    document.getElementById('legend-items').style.display = 'none';
+    document.getElementById('average-view').style.display = 'block';
+    // Always refresh average data on switch
+    avgLoadAndRender().then(() => {
+      avgBindHover('avg-xpu-chart');
+      avgBindHover('avg-mem-chart');
+    });
+  } else {
+    document.getElementById('personal-view').style.display = 'block';
+    document.getElementById('legend-items').style.display = 'flex';
+    document.getElementById('average-view').style.display = 'none';
+    // Always refresh personal view data on switch
+    loadAllData().then(status => renderStatusBar(status));
+  }
+});
+
+// Window toggle for average view
+document.getElementById('avg-window-toggles').addEventListener('click', (e) => {
+  const btn = e.target.closest('.win-btn');
+  if (!btn) return;
+  document.querySelectorAll('#avg-window-toggles .win-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  avgWindow = parseInt(btn.dataset.window, 10);
+  if (avgTodayNodes.length) {
+    const td = computeMA(avgTodayNodes, avgWindow);
+    avgTodayXpuMA = td.xpu; avgTodayMemMA = td.mem;
+    if (avgYestNodes.length) {
+      const yd = computeMA(avgYestNodes, avgWindow);
+      avgYestXpuMA = yd.xpu; avgYestMemMA = yd.mem;
+    }
+    avgDrawAllCharts();
+    renderStatusBar({ lockBot: { ok: true }, monquery: { ok: true }, lastUpdated: Date.now() });
+  }
+});
+
+// Date picker change
+document.getElementById('avg-filter-date').addEventListener('change', () => {
+  if (viewType === 'all') avgLoadAndRender().then(() => {
+    avgBindHover('avg-xpu-chart');
+    avgBindHover('avg-mem-chart');
+  });
+});
+
+// Resize handler for average charts
+window.addEventListener('resize', () => {
+  if (viewType === 'all' && avgTodayXpuMA.length) avgDrawAllCharts();
+});
+
+// Initial average view load (default view is 'all')
+avgLoadAndRender().then(() => {
+  avgBindHover('avg-xpu-chart');
+  avgBindHover('avg-mem-chart');
+});
 
 // ---- 统计卡片 ----
 
@@ -699,6 +921,20 @@ function renderStats() {
 
 function renderStatusBar(status) {
   const mini = document.getElementById('status-mini');
+
+  if (viewType === 'all') {
+    // Average view: show date + window info
+    const selDate = avgGetSelectedDate();
+    const dateStr = selDate.toLocaleDateString('zh-CN', { month:'numeric', day:'numeric' });
+    const winLabel = {1:'5m', 2:'10m', 6:'30m', 12:'1h'}[avgWindow] || '10m';
+    mini.innerHTML = `
+      <span class="status-time-mini">${dateStr} · ${winLabel}</span>
+      <span class="status-retry" id="status-refresh-btn" title="刷新">&#x21bb;</span>
+    `;
+    return;
+  }
+
+  // Personal view: existing status display
   const hasLockBot = status.lockBot.ok;
   const hasMonquery = status.monquery.ok;
   const timeStr = new Date(status.lastUpdated).toLocaleTimeString('zh-CN');
@@ -717,6 +953,227 @@ function renderStatusBar(status) {
     <span class="status-time-mini">${timeStr}</span>
     <span class="status-retry" id="status-refresh-btn" title="刷新">&#x21bb;</span>
   `;
+}
+
+// ---- Average View: Chart Drawing ----
+
+function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yTicks, cutoffSlot) {
+  const canvas = document.getElementById(canvasId);
+  const wrap = canvas.parentElement;
+  const ctx = canvas.getContext('2d');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  canvas.width = w; canvas.height = h;
+
+  const plotW = w - AVG_MARGIN.left - AVG_MARGIN.right;
+  const plotH = h - AVG_MARGIN.top - AVG_MARGIN.bottom;
+  const maxSlot = Math.min(SLOT_COUNT - 1, cutoffSlot);
+
+  // Grid lines
+  ctx.save();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = .8;
+  ctx.setLineDash([4, 4]);
+  yTicks.forEach(v => {
+    const y = AVG_MARGIN.top + (1 - v / yMax) * plotH;
+    ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left, y); ctx.lineTo(w - AVG_MARGIN.right, y); ctx.stroke();
+  });
+  for (let i = 0; i <= SLOT_COUNT; i += 24) {
+    const x = AVG_MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    ctx.beginPath(); ctx.moveTo(x, AVG_MARGIN.top); ctx.lineTo(x, AVG_MARGIN.top + plotH); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.restore();
+
+  // Y axis
+  ctx.save();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left, AVG_MARGIN.top); ctx.lineTo(AVG_MARGIN.left, AVG_MARGIN.top + plotH); ctx.stroke();
+  ctx.restore();
+
+  // X axis
+  ctx.save();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left, AVG_MARGIN.top + plotH); ctx.lineTo(w - AVG_MARGIN.right, AVG_MARGIN.top + plotH); ctx.stroke();
+  ctx.restore();
+
+  // X axis labels
+  ctx.save();
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '11px "SF Mono","JetBrains Mono",monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let i = 0; i < SLOT_COUNT; i += 24) {
+    const x = AVG_MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    const hh = Math.floor(i / 12), mm = i % 12 * 5;
+    ctx.fillText(String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'), x, AVG_MARGIN.top + plotH + 5);
+  }
+  ctx.restore();
+
+  // Y axis labels
+  ctx.save();
+  yTicks.forEach(v => {
+    const y = AVG_MARGIN.top + (1 - v / yMax) * plotH;
+    const isExtreme = (v === 0 || v === yMax);
+    ctx.fillStyle = '#1e293b';
+    ctx.font = (isExtreme ? 'bold ' : '') + '11px "SF Mono","JetBrains Mono",monospace';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(v + '%', AVG_MARGIN.left - 7, y);
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left - 4, y); ctx.lineTo(AVG_MARGIN.left, y); ctx.stroke();
+  });
+  ctx.restore();
+
+  // Clip region
+  ctx.save();
+  ctx.beginPath(); ctx.rect(AVG_MARGIN.left, AVG_MARGIN.top, plotW, plotH); ctx.clip();
+
+  // Yesterday line (dashed, full day)
+  if (yestData) {
+    ctx.strokeStyle = ghostColor; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const x = AVG_MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+      const v = Math.max(0, Math.min(yMax, yestData[i]));
+      const y = AVG_MARGIN.top + (1 - v / yMax) * plotH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // Today line (solid, up to maxSlot)
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= maxSlot; i++) {
+    const x = AVG_MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    const v = Math.max(0, Math.min(yMax, todayData[i]));
+    const y = AVG_MARGIN.top + (1 - v / yMax) * plotH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Store metadata for hover
+  const layers = [{ data: todayData, color, label: '今日' }];
+  if (yestData) layers.push({ data: yestData, color: ghostColor, tipColor: color, label: '昨日' });
+  canvas._avglayers = layers;
+  canvas._avgmargins = AVG_MARGIN;
+  canvas._avgplotW = plotW;
+  canvas._avgplotH = plotH;
+  canvas._avgyMax = yMax;
+
+  // Snapshot
+  const img = new Image(); img.src = canvas.toDataURL(); canvas._avgsnapshot = img;
+}
+
+function avgDrawAllCharts() {
+  if (!avgTodayXpuMA.length) return;
+  avgDrawChart('avg-xpu-chart', avgTodayXpuMA, avgYestXpuMA, '#7c3aed', 'rgba(124,58,237,0.45)', 35, XPU_TICKS, avgCutoffSlot);
+  avgDrawChart('avg-mem-chart', avgTodayMemMA, avgYestMemMA, '#ea580c', 'rgba(234,88,12,0.45)', 70, MEM_TICKS, avgCutoffSlot);
+}
+
+function avgRestoreSnapshot(canvas) {
+  if (!canvas._avgsnapshot) return;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(canvas._avgsnapshot, 0, 0);
+}
+
+let avgHoverBound = { 'avg-xpu-chart': false, 'avg-mem-chart': false };
+
+function avgBindHover(canvasId) {
+  if (avgHoverBound[canvasId]) return;
+  avgHoverBound[canvasId] = true;
+  const canvas = document.getElementById(canvasId);
+  canvas.addEventListener('mousemove', e => {
+    const layers = canvas._avglayers; if (!layers || !layers.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const m = canvas._avgmargins, pw = canvas._avgplotW, ph = canvas._avgplotH;
+    if (!m) return;
+    const plotX = x - m.left;
+    const ci = Math.max(0, Math.min(SLOT_COUNT - 1, Math.round(plotX / pw * (SLOT_COUNT - 1))));
+    if (plotX < 0 || plotX > pw) { tooltip.style.display = 'none'; avgRestoreSnapshot(canvas); return; }
+
+    avgRestoreSnapshot(canvas);
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.beginPath(); ctx.rect(m.left, m.top, pw, ph); ctx.clip();
+    // Crosshair
+    const cx = m.left + (ci / (SLOT_COUNT - 1)) * pw;
+    ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cx, m.top); ctx.lineTo(cx, m.top + ph); ctx.stroke();
+    ctx.setLineDash([]);
+    // Dots
+    const yMax = canvas._avgyMax || 100;
+    layers.forEach(l => {
+      const v = l.data[ci], dotX = cx, dotY = m.top + (1 - v / yMax) * ph;
+      ctx.beginPath(); ctx.arc(dotX, dotY, 4, 0, Math.PI*2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = l.color; ctx.lineWidth = 2; ctx.stroke();
+    });
+    ctx.restore();
+
+    const hh = Math.floor(ci / 12), mm = (ci % 12) * 5;
+    const timeStr = String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+    let html = `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">${timeStr}</div>`;
+    layers.forEach(l => {
+      const tc = l.tipColor || l.color;
+      html += `<div style="display:flex;align-items:center;gap:6px;margin:1px 0;"><span style="width:7px;height:7px;border-radius:50%;background:${tc};flex-shrink:0;"></span><span style="font-size:10px;color:#cbd5e1;">${l.label}</span><span style="font-weight:600;color:${tc};">${l.data[ci].toFixed(1)}%</span></div>`;
+    });
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(rect.left + cx + 14, rect.right - tooltip.offsetWidth - 6) + 'px';
+    tooltip.style.top = Math.max(rect.top, rect.top + m.top + ph * 0.15) + 'px';
+  });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; avgRestoreSnapshot(canvas); });
+}
+
+// ---- Average View: Data Loading ----
+
+async function avgLoadAndRender() {
+  const selDate = avgGetSelectedDate();
+  const isToday = document.getElementById('avg-filter-date').value === avgGetTodayStr();
+
+  const todayStart = formatDateStart(selDate);
+  const todayEnd = isToday ? formatDateTime(new Date()) : formatDateEnd(selDate);
+
+  const yesterday = new Date(selDate); yesterday.setDate(yesterday.getDate() - 1);
+  const yestStart = formatDateStart(yesterday), yestEnd = formatDateEnd(yesterday);
+
+  const [todayData, yestData] = await Promise.all([
+    fetchMonqueryUtilization(todayStart, todayEnd).catch(e => { console.error('Avg fetch failed:', e); return null; }),
+    fetchMonqueryUtilization(yestStart, yestEnd).catch(e => { console.warn('Avg yesterday fetch failed:', e); return null; })
+  ]);
+
+  avgTodayNodes = processMonqueryData(todayData);
+  avgYestNodes = processMonqueryData(yestData);
+
+  const td = computeMA(avgTodayNodes, avgWindow);
+  avgTodayXpuMA = td.xpu; avgTodayMemMA = td.mem;
+
+  if (avgYestNodes.length) {
+    const yd = computeMA(avgYestNodes, avgWindow);
+    avgYestXpuMA = yd.xpu; avgYestMemMA = yd.mem;
+  } else {
+    avgYestXpuMA = null; avgYestMemMA = null;
+  }
+
+  if (isToday) {
+    const now = new Date();
+    avgCutoffSlot = Math.max(0, now.getHours() * 12 + Math.floor(now.getMinutes() / 5) - 1);
+  } else {
+    avgCutoffSlot = 287;
+  }
+
+  renderStatusBar({ lockBot: { ok: true }, monquery: { ok: !!todayData }, lastUpdated: Date.now() });
+  avgDrawAllCharts();
+}
+
+function avgStartAutoRefresh() {
+  if (avgRefreshTimer) clearInterval(avgRefreshTimer);
+  avgRefreshTimer = setInterval(async () => {
+    if (document.hidden) return;
+    if (viewType !== 'all') return;
+    if (document.getElementById('avg-filter-date').value !== avgGetTodayStr()) return;
+    try { await avgLoadAndRender(); } catch(e) { console.error('Avg auto-refresh:', e); }
+  }, 60000);
 }
 
 function showToast(message, duration = 5000) {
@@ -860,8 +1317,23 @@ function renderList() {
       const locked = !!node.hasActiveLock;
       if ((node.status === 'BUSY' || node.status === 'PARTIAL') && !locked) {
         warnBadge = '<span class="badge-warn-anon" title="显存占用中但无 Lock Bot 锁，疑似匿名占用">匿名占用</span>';
-      } else if (node.status === 'FREE' && locked) {
-        warnBadge = '<span class="badge-warn-zombie" title="有 Lock Bot 锁但显存未使用，疑似僵尸锁">疑似僵尸锁</span>';
+      } else if (locked) {
+        // 检查最近 2h（24 个 5min 槽）是否持续空闲
+        const windowSlots = 24;
+        const endSlot = Math.max(0, nowIdx - 1);
+        const startSlot = Math.max(0, endSlot - windowSlots + 1);
+        let unused2h = true;
+        for (let s = startSlot; s <= endSlot; s++) {
+          const avgU = node.avgUtil[s] || 0;
+          const avgM = node.avgMemUtil[s] || 0;
+          if (avgU >= 10 || avgM >= 10) {
+            unused2h = false;
+            break;
+          }
+        }
+        if (unused2h) {
+          warnBadge = '<span class="badge-warn-zombie" title="该节点已锁定但近2h内XPU与显存利用率均低于10%">⚠已锁定≥2h未使用</span>';
+        }
       }
     }
 
