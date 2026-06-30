@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>移动平均利用率 — 开发机集群</title>
+<title>集群利用率趋势 — 开发机集群</title>
 <style>
 :root {
   --bg:        #f4f5f7;
@@ -26,7 +26,7 @@ body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg);
   color: var(--text);
-  padding: 28px 32px;
+  padding: 24px 28px;
   min-height: 100vh;
   letter-spacing: -.01em;
 }
@@ -34,7 +34,7 @@ body {
 /* ── Typography ── */
 h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02em; }
 
-/* ── Login (light, kept familiar) ── */
+/* ── Login ── */
 .login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
 .login-card {
   background: #fff; border-radius: 12px; padding: 32px 28px; width: 340px;
@@ -55,11 +55,12 @@ h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02
 .login-error { color: var(--dot-err); font-size: 13px; margin-top: 10px; text-align: center; }
 
 /* ── Header ── */
-.header {
+.header { margin-bottom: 16px; }
+.header-top {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  flex-wrap: wrap; gap: 12px;
 }
-.header-group { display: flex; align-items: center; gap: 16px; }
+.header-group { display: flex; align-items: center; gap: 14px; }
 .back-link {
   font-size: 12px; color: var(--muted); text-decoration: none;
   border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
@@ -78,9 +79,23 @@ h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02
 .win-btn:hover { color: var(--text); }
 .win-btn.active { background: var(--border); color: var(--text); }
 
+/* ── Time range filter ── */
+.header-filter {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 12px; color: var(--muted); flex-wrap: wrap;
+}
+.header-filter label { font-weight: 500; }
+.header-filter input[type="date"] {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; font-family: "SF Mono", "JetBrains Mono", monospace;
+  color: var(--text); background: var(--surface); outline: none;
+  width: 120px;
+}
+.header-filter input[type="date"]:focus { border-color: var(--xpu); }
+
 /* ── Status bar ── */
 .status-bar {
-  display: flex; align-items: center; gap: 8px; padding: 8px 14px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px; margin-bottom: 14px;
   border-radius: 8px; font-size: 12px; background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.15);
 }
 .status-bar.caution { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.15); }
@@ -95,69 +110,67 @@ h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02
 }
 .status-bar.caution .status-tag { background: rgba(245,158,11,.12); color: var(--dot-warn); }
 .status-bar.error   .status-tag { background: rgba(239,68,68,.12); color: var(--dot-err); }
-.status-node-count { color: var(--muted); font-size: 11px; margin-left: 8px; }
+.status-node-count { color: var(--muted); font-size: 11px; }
 .status-time {
   color: var(--muted); font-size: 11px; margin-left: auto;
   font-family: "SF Mono", "JetBrains Mono", monospace;
 }
 
-/* ── Chart card ── */
-.chart-card {
+/* ── Charts row ── */
+.charts-row {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.chart-panel {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 24px 28px 20px;
+  border-radius: 12px; padding: 20px;
 }
+.chart-panel-title {
+  font-size: 13px; font-weight: 600; margin-bottom: 4px;
+  color: var(--text);
+}
+
+/* ── Chart legend ── */
 .chart-legend {
-  display: flex; align-items: center; gap: 20px; margin-bottom: 16px; font-size: 12px;
+  display: flex; align-items: center; gap: 16px; font-size: 11px; margin-bottom: 8px;
 }
-.legend-item { display: flex; align-items: center; gap: 7px; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-line { height: 2px; border-radius: 1px; }
-.legend-line.solid { width: 20px; }
-.legend-line.dash  { width: 20px; border: none; background: repeating-linear-gradient(90deg, var(--c) 0, var(--c) 4px, transparent 4px, transparent 7px); }
+.legend-line.solid { width: 16px; }
+.legend-line.dash  { width: 16px; border: none; background: repeating-linear-gradient(90deg, var(--c) 0, var(--c) 4px, transparent 4px, transparent 7px); }
 
-.chart-wrap { position: relative; height: 360px; }
+/* ── Chart wrap ── */
+.chart-wrap { position: relative; height: 310px; }
 .chart-wrap canvas { width: 100%; height: 100%; }
-
-/* ── X-axis ── */
-.x-axis {
-  display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);
-  padding: 6px 0 0 0; font-family: "SF Mono", "JetBrains Mono", monospace;
-}
-
-/* ── Summary ── */
-.summary {
-  display: flex; gap: 48px; margin-top: 18px; padding-top: 16px;
-  border-top: 1px solid var(--border); justify-content: center;
-}
-.summary-col { text-align: center; }
-.summary-col .s-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-.summary-row { display: flex; gap: 20px; justify-content: center; }
-.summary-item { text-align: center; }
-.summary-item .s-sub  { font-size: 10px; color: var(--muted); }
-.summary-item .s-val  {
-  font-size: 22px; font-weight: 700;
-  font-family: "SF Mono", "JetBrains Mono", "Consolas", monospace;
-}
-.s-val.xpu { color: var(--xpu); }
-.s-val.mem { color: var(--mem); }
 
 /* ── Tooltip ── */
 .tooltip {
-  position: fixed; background: #1e1f2a; color: #fff; padding: 6px 10px;
-  border-radius: 6px; font-size: 11px; pointer-events: none; white-space: nowrap;
-  z-index: 200; display: none; border: 1px solid #2a2b36;
+  position: fixed; color: #fff; padding: 8px 12px;
+  border-radius: 8px; font-size: 11px; pointer-events: none; white-space: nowrap;
+  z-index: 200; display: none;
   font-family: "SF Mono", "JetBrains Mono", monospace;
-  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  background: #1e1f2a; border: 1px solid #374151;
 }
+.tooltip .t-time { font-size: 10px; color: #94a3b8; margin-bottom: 4px; }
+.tooltip .t-row { display: flex; align-items: center; gap: 6px; margin: 1px 0; }
+.tooltip .t-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tooltip .t-label { font-size: 10px; color: #cbd5e1; }
+.tooltip .t-val { font-weight: 600; }
 
 /* ── Loading ── */
 #loading-msg { text-align: center; padding: 80px; color: var(--muted); font-size: 14px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  body { padding: 16px; }
+}
 </style>
 </head>
 <body>
 
 <!-- Login -->
 <div id="login-form" class="login-container" style="display:none">
-  <h1 style="text-align:center;margin-bottom:20px;color:#1e293b">开发机集群移动平均利用率</h1>
+  <h1 style="text-align:center;margin-bottom:20px;color:#1e293b">开发机集群利用率趋势</h1>
   <div class="login-card">
     <h2>Lock Bot 登录</h2>
     <input id="login-username" type="text" placeholder="用户名" autocomplete="username">
@@ -170,58 +183,60 @@ h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02
 <!-- Dashboard -->
 <div id="dashboard" style="display:block">
   <div class="header">
-    <div class="header-group">
-      <h1>移动平均利用率</h1>
-      <a href="/" class="back-link">← 仪表盘</a>
+    <div class="header-top">
+      <div class="header-group">
+        <h1>集群利用率趋势</h1>
+        <a href="/" class="back-link">← 仪表盘</a>
+      </div>
+      <div class="window-toggles" id="window-toggles">
+        <span class="win-btn" data-window="1">5m</span>
+        <span class="win-btn active" data-window="2">10m</span>
+        <span class="win-btn" data-window="6">30m</span>
+        <span class="win-btn" data-window="12">1h</span>
+      </div>
     </div>
-    <div class="window-toggles" id="window-toggles">
-      <span class="win-btn active" data-window="1">5m</span>
-      <span class="win-btn" data-window="2">10m</span>
-      <span class="win-btn" data-window="6">30m</span>
-      <span class="win-btn" data-window="12">1h</span>
+    <div class="header-filter" id="header-filter">
+      <label>日期</label>
+      <input type="date" id="filter-date">
     </div>
   </div>
   <div id="loading-msg">正在加载…</div>
   <div class="status-bar" id="status-bar" style="display:none"></div>
-  <div class="chart-card" id="chart-card" style="display:none">
-    <div class="chart-legend">
-      <div class="legend-item">
-        <span class="legend-line solid" style="--c:var(--xpu);background:var(--xpu)"></span>
-        <span>XPU 今日</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-line dash" style="--c:var(--xpu-ghost)"></span>
-        <span style="color:var(--muted)">XPU 昨日</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-line solid" style="--c:var(--mem);background:var(--mem)"></span>
-        <span>显存 今日</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-line dash" style="--c:var(--mem-ghost)"></span>
-        <span style="color:var(--muted)">显存 昨日</span>
-      </div>
-    </div>
-    <div class="chart-wrap" id="chart-wrap">
-      <canvas id="main-chart"></canvas>
-    </div>
-    <div class="x-axis">
-      <span>00:00</span><span>02:00</span><span>04:00</span><span>06:00</span>
-      <span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span>
-      <span>16:00</span><span>18:00</span><span>20:00</span><span>22:00</span>
-    </div>
-    <div class="summary" id="summary" style="display:none">
-      <div class="summary-col">
-        <div class="s-label">XPU 移动平均</div>
-        <div class="summary-row">
-          <div class="summary-item"><div class="s-sub">今日</div><div class="s-val xpu" id="sum-xpu-today">--</div></div>
+
+  <div class="charts-row" id="charts-row" style="display:none">
+    <!-- XPU Chart -->
+    <div class="chart-panel" id="xpu-panel">
+      <div class="chart-panel-title">XPU 利用率</div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <span class="legend-line solid" style="--c:var(--xpu);background:var(--xpu)"></span>
+          <span>今日</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line dash" style="--c:var(--xpu-ghost)"></span>
+          <span style="color:var(--muted)">昨日</span>
         </div>
       </div>
-      <div class="summary-col">
-        <div class="s-label">显存 移动平均</div>
-        <div class="summary-row">
-          <div class="summary-item"><div class="s-sub">今日</div><div class="s-val mem" id="sum-mem-today">--</div></div>
+      <div class="chart-wrap" id="xpu-chart-wrap">
+        <canvas id="xpu-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- MEM Chart -->
+    <div class="chart-panel" id="mem-panel">
+      <div class="chart-panel-title">显存 利用率</div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <span class="legend-line solid" style="--c:var(--mem);background:var(--mem)"></span>
+          <span>今日</span>
         </div>
+        <div class="legend-item">
+          <span class="legend-line dash" style="--c:var(--mem-ghost)"></span>
+          <span style="color:var(--muted)">昨日</span>
+        </div>
+      </div>
+      <div class="chart-wrap" id="mem-chart-wrap">
+        <canvas id="mem-chart"></canvas>
       </div>
     </div>
   </div>
@@ -237,14 +252,32 @@ const SLOT_COUNT = 288;
 const tooltip = document.getElementById('tooltip');
 
 let token = null;
-let currentWindow = 1; // 默认 5min
+let currentWindow = 2;
 let todayXpuMA = new Array(SLOT_COUNT).fill(0);
 let todayMemMA = new Array(SLOT_COUNT).fill(0);
 let yestXpuMA  = null;
 let yestMemMA  = null;
-let todayNodes = []; // 缓存 raw nodes 以便窗口切换时重算
+let todayNodes = [];
 let yestNodes  = [];
 let refreshTimer = null;
+
+// ── 选中日期 ──
+function getTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+document.getElementById('filter-date').value = getTodayStr();
+
+function getSelectedDate() {
+  const v = document.getElementById('filter-date').value;
+  return v ? new Date(v + 'T00:00:00') : new Date();
+}
+
+// ── Chart margins ──
+const MARGIN = { top: 10, right: 16, bottom: 20, left: 48 };
+// Y 轴刻度：XPU 0-50 每 5%，显存 0-100 每 10%
+const XPU_TICKS = [0, 5, 10, 15, 20, 25, 30, 35];
+const MEM_TICKS = [0, 10, 20, 30, 40, 50, 60, 70];
 
 // ── 工具函数 ──
 
@@ -348,28 +381,37 @@ document.getElementById('window-toggles').addEventListener('click', e => {
       const yd = computeMA(yestNodes, currentWindow);
       yestXpuMA = yd.xpu; yestMemMA = yd.mem;
     }
-    drawChart();
-    updateSummary();
+    drawAllCharts();
   }
+});
+
+// ── 日期变更 ──
+
+document.getElementById('filter-date').addEventListener('change', () => {
+  if (todayNodes.length) loadAndRender();
 });
 
 // ── 加载 ──
 
 async function loadAndRender() {
-  const now = new Date();
-  const todayStart = formatDateStart(now), todayEnd = formatDateTime(now);
+  const selDate = getSelectedDate();
+  const isToday = document.getElementById('filter-date').value === getTodayStr();
 
-  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const todayStart = formatDateStart(selDate);
+  // 选今天时查到当前时刻，其他日期查全天
+  const todayEnd = isToday ? formatDateTime(new Date()) : formatDateEnd(selDate);
+
+  const yesterday = new Date(selDate); yesterday.setDate(yesterday.getDate() - 1);
   const yestStart = formatDateStart(yesterday), yestEnd = formatDateEnd(yesterday);
 
-  // 并行拉取今日 + 昨日数据
   const [todayData, yestData] = await Promise.all([
-    fetchMonqueryUtilization(todayStart, todayEnd).catch(e => { console.error('Today fetch failed:', e); return null; }),
+    fetchMonqueryUtilization(todayStart, todayEnd).catch(e => { console.error('Fetch failed:', e); return null; }),
     fetchMonqueryUtilization(yestStart, yestEnd).catch(e => { console.warn('Yesterday fetch failed:', e); return null; })
   ]);
 
   todayNodes = processMonqueryData(todayData);
-  yestNodes  = processMonqueryData(yestData);  // 计算移动平均
+  yestNodes  = processMonqueryData(yestData);
+
   const td = computeMA(todayNodes, currentWindow);
   todayXpuMA = td.xpu; todayMemMA = td.mem;
 
@@ -380,86 +422,160 @@ async function loadAndRender() {
     yestXpuMA = null; yestMemMA = null;
   }
 
-  renderStatusBar(!!todayData, now, todayNodes.length);
-  document.getElementById('chart-card').style.display = '';
-  drawChart();
-  updateSummary();
+  // 截断未来数据：今天只画到当前已完成槽，历史日期画全部
+  if (isToday) {
+    const now = new Date();
+    cutoffSlot = Math.max(0, now.getHours() * 12 + Math.floor(now.getMinutes() / 5) - 1);
+  } else {
+    cutoffSlot = 287;
+  }
+
+  renderStatusBar(!!todayData, selDate, todayNodes.length);
+  document.getElementById('charts-row').style.display = '';
+  drawAllCharts();
 }
 
 // ── 状态栏 ──
 
-function renderStatusBar(ok, now, nodeCount) {
+function renderStatusBar(ok, selDate, nodeCount) {
   const bar = document.getElementById('status-bar');
-  const timeStr = now.toLocaleTimeString('zh-CN');
+  const isToday = document.getElementById('filter-date').value === getTodayStr();
+  const dateStr = selDate.toLocaleDateString('zh-CN', { month:'numeric', day:'numeric' });
+  const timeStr = isToday ? ' ' + new Date().toLocaleTimeString('zh-CN') : '';
   let cls = '', tag = '';
   if (!ok) { cls = 'error'; tag = 'ERROR'; }
-  else { tag = 'NORMAL'; }
+  else { tag = isToday ? 'NORMAL' : 'HISTORY'; }
 
   bar.className = 'status-bar' + (cls ? ' ' + cls : '');
-  bar.innerHTML = `<span class="status-dot"></span><span class="status-tag">${tag}</span><span class="status-node-count">${nodeCount} nodes</span><span class="status-time">${timeStr}</span>`;
+  bar.innerHTML = `<span class="status-dot"></span><span class="status-tag">${tag}</span><span class="status-node-count">${nodeCount} nodes · ${dateStr}${timeStr}</span><span class="status-time"></span>`;
   bar.style.display = 'flex';
 }
 
-// ── 图表 ──
+// ── 图表绘制 ──
 
-function drawGrid(ctx, w, h) {
-  ctx.save();
-  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = .5;
-  for (let i = 0; i <= SLOT_COUNT; i += 24) {
-    const x = (i / SLOT_COUNT) * w;
-    ctx.beginPath(); ctx.setLineDash([1, 4]); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
-  for (const pct of [.25, .5, .75]) {
-    const y = h - pct * h;
-    ctx.beginPath(); ctx.setLineDash([1, 4]); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-  }
-  ctx.setLineDash([]); ctx.restore();
-}
-
-function drawChart() {
-  const canvas = document.getElementById('main-chart');
-  const wrap = document.getElementById('chart-wrap');
+function drawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yTicks, cutoffSlot) {
+  const canvas = document.getElementById(canvasId);
+  const wrap = canvas.parentElement;
   const ctx = canvas.getContext('2d');
   const w = wrap.clientWidth, h = wrap.clientHeight;
   canvas.width = w; canvas.height = h;
 
-  drawGrid(ctx, w, h);
-  canvas._layers = [];
+  const plotW = w - MARGIN.left - MARGIN.right;
+  const plotH = h - MARGIN.top - MARGIN.bottom;
+  const maxSlot = Math.min(SLOT_COUNT - 1, cutoffSlot);
 
-  const margin = 24;
+  // 水平 + 垂直网格线（深色虚线，一起绘制）
+  ctx.save();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = .8;
+  ctx.setLineDash([4, 4]);
+  yTicks.forEach(v => {
+    const y = MARGIN.top + (1 - v / yMax) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN.left, y); ctx.lineTo(w - MARGIN.right, y);
+    ctx.stroke();
+  });
+  for (let i = 0; i <= SLOT_COUNT; i += 24) {
+    const x = MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(x, MARGIN.top); ctx.lineTo(x, MARGIN.top + plotH);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
 
-  const drawLine = (data, color, dash) => {
-    ctx.strokeStyle = color; ctx.lineWidth = data === todayXpuMA || data === todayMemMA ? 2 : 1.5;
-    ctx.setLineDash(dash || []);
+  // Y 轴竖实线
+  ctx.save();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(MARGIN.left, MARGIN.top); ctx.lineTo(MARGIN.left, MARGIN.top + plotH);
+  ctx.stroke();
+  ctx.restore();
+
+  // X 轴横实线（底部）
+  ctx.save();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(MARGIN.left, MARGIN.top + plotH); ctx.lineTo(w - MARGIN.right, MARGIN.top + plotH);
+  ctx.stroke();
+  ctx.restore();
+
+  // X 轴时间标签（与网格线完全对齐）
+  ctx.save();
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '11px "SF Mono","JetBrains Mono",monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let i = 0; i < SLOT_COUNT; i += 24) {
+    const x = MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    const hh = Math.floor(i / 12), mm = i % 12 * 5;
+    ctx.fillText(String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'), x, MARGIN.top + plotH + 5);
+  }
+  ctx.restore();
+
+  // Y 轴刻度标签 + 短线
+  ctx.save();
+  yTicks.forEach(v => {
+    const y = MARGIN.top + (1 - v / yMax) * plotH;
+    const isExtreme = (v === 0 || v === yMax);
+    ctx.fillStyle = '#1e293b';
+    ctx.font = (isExtreme ? 'bold ' : '') + '11px "SF Mono","JetBrains Mono",monospace';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(v + '%', MARGIN.left - 7, y);
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(MARGIN.left - 4, y); ctx.lineTo(MARGIN.left, y); ctx.stroke();
+  });
+  ctx.restore();
+
+  // 裁剪区域
+  ctx.save();
+  ctx.beginPath(); ctx.rect(MARGIN.left, MARGIN.top, plotW, plotH); ctx.clip();
+
+  // 绘制昨日线条（虚线），画满全天不截断
+  if (yestData) {
+    ctx.strokeStyle = ghostColor; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     for (let i = 0; i < SLOT_COUNT; i++) {
-      const x = (i / (SLOT_COUNT - 1)) * w;
-      const v = Math.max(0, Math.min(100, data[i]));
-      const y = h - margin - (v / 100) * (h - margin * 2);
+      const x = MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+      const v = Math.max(0, Math.min(yMax, yestData[i]));
+      const y = MARGIN.top + (1 - v / yMax) * plotH;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
     ctx.setLineDash([]);
-  };
-
-  // 今日 — 实线
-  drawLine(todayXpuMA, '#7c3aed', []);
-  canvas._layers.push({ data: todayXpuMA, color: '#7c3aed', label: 'XPU' });
-  drawLine(todayMemMA, '#ea580c', []);
-  canvas._layers.push({ data: todayMemMA, color: '#ea580c', label: '显存' });
-
-  // 昨日 — 虚线 ghost
-  if (yestXpuMA) {
-    drawLine(yestXpuMA, 'rgba(124,58,237,0.28)', [5, 5]);
-    canvas._layers.push({ data: yestXpuMA, color: 'rgba(124,58,237,0.45)', label: 'XPU昨' });
   }
-  if (yestMemMA) {
-    drawLine(yestMemMA, 'rgba(234,88,12,0.28)', [5, 5]);
-    canvas._layers.push({ data: yestMemMA, color: 'rgba(234,88,12,0.45)', label: '显存昨' });
+
+  // 绘制今日线条（实线），截至 maxSlot
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= maxSlot; i++) {
+    const x = MARGIN.left + (i / (SLOT_COUNT - 1)) * plotW;
+    const v = Math.max(0, Math.min(yMax, todayData[i]));
+    const y = MARGIN.top + (1 - v / yMax) * plotH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
+  ctx.stroke();
+
+  ctx.restore(); // 恢复裁剪
+
+  // 存储图层信息用于 hover
+  const layers = [{ data: todayData, color, label: '今' }];
+  if (yestData) layers.push({ data: yestData, color: ghostColor, tipColor: color, label: '昨' });
+  canvas._layers = layers;
+  canvas._margins = MARGIN;
+  canvas._plotW = plotW;
+  canvas._plotH = plotH;
+  canvas._yMax = yMax;
 
   // 快照
   const img = new Image(); img.src = canvas.toDataURL(); canvas._snapshot = img;
+}
+
+let cutoffSlot = 287;
+
+function drawAllCharts() {
+  if (!todayXpuMA.length) return;
+  drawChart('xpu-chart', todayXpuMA, yestXpuMA, '#7c3aed', 'rgba(124,58,237,0.45)', 35, XPU_TICKS, cutoffSlot);
+  drawChart('mem-chart', todayMemMA, yestMemMA, '#ea580c', 'rgba(234,88,12,0.45)', 70, MEM_TICKS, cutoffSlot);
 }
 
 function restoreSnapshot(canvas) {
@@ -467,46 +583,68 @@ function restoreSnapshot(canvas) {
   const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(canvas._snapshot, 0, 0);
 }
 
-// ── Summary ──
-
-function updateSummary() {
-  const nowIdx = new Date().getHours() * 12 + Math.floor(new Date().getMinutes() / 5);
-  const ei = Math.max(0, nowIdx - 1);
-  document.getElementById('summary').style.display = '';
-  document.getElementById('sum-xpu-today').textContent = todayXpuMA[ei].toFixed(1) + '%';
-  document.getElementById('sum-mem-today').textContent = todayMemMA[ei].toFixed(1) + '%';
-}
-
 // ── Hover ──
 
-(function bindHover() {
-  const canvas = document.getElementById('main-chart');
-  const margin = 24;
+function bindHover(canvasId, accentColor) {
+  const canvas = document.getElementById(canvasId);
   canvas.addEventListener('mousemove', e => {
     const layers = canvas._layers; if (!layers || !layers.length) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const ci = Math.max(0, Math.min(SLOT_COUNT - 1, Math.round(x / rect.width * (SLOT_COUNT - 1))));
+    const m = canvas._margins, pw = canvas._plotW, ph = canvas._plotH;
+    if (!m) return;
+    const plotX = x - m.left;
+    const ci = Math.max(0, Math.min(SLOT_COUNT - 1, Math.round(plotX / pw * (SLOT_COUNT - 1))));
+    if (plotX < 0 || plotX > pw) { tooltip.style.display = 'none'; restoreSnapshot(canvas); return; }
+
     restoreSnapshot(canvas);
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
+    // 裁剪区域
+    ctx.save();
+    ctx.beginPath(); ctx.rect(m.left, m.top, pw, ph); ctx.clip();
+    // 竖线
+    const cx = m.left + (ci / (SLOT_COUNT - 1)) * pw;
+    ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cx, m.top); ctx.lineTo(cx, m.top + ph); ctx.stroke();
+    ctx.setLineDash([]);
+    // 圆点
+    const yMax = canvas._yMax || 100;
     layers.forEach(l => {
-      const v = l.data[ci], dotX = (ci / (SLOT_COUNT - 1)) * w;
-      const dotY = h - margin - (v / 100) * (h - margin * 2);
-      ctx.beginPath(); ctx.arc(dotX, dotY, 3.5, 0, Math.PI*2); ctx.fillStyle = l.color; ctx.fill();
+      const v = l.data[ci], dotX = cx;
+      const dotY = m.top + (1 - v / yMax) * ph;
+      ctx.beginPath(); ctx.arc(dotX, dotY, 4, 0, Math.PI*2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = l.color; ctx.lineWidth = 2; ctx.stroke();
     });
+    ctx.restore();
+
+    // 构建卡片式 tooltip
     const hh = Math.floor(ci / 12), mm = (ci % 12) * 5;
-    const vals = layers.map(l => `${l.label}:${l.data[ci].toFixed(1)}%`).join(' | ');
-    tooltip.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}  ${vals}`;
+    const timeStr = String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+    let html = `<div class="t-time">${timeStr}</div>`;
+    layers.forEach(l => {
+      const tc = l.tipColor || l.color;
+      html += `<div class="t-row"><span class="t-dot" style="background:${tc}"></span><span class="t-label">${l.label}</span><span class="t-val" style="color:${tc}">${l.data[ci].toFixed(1)}%</span></div>`;
+    });
+    tooltip.innerHTML = html;
     tooltip.style.display = 'block';
-    const tx = e.pageX + 12, ty = e.pageY - 34;
+    tooltip.style.borderColor = accentColor;
+    // 定位：竖线右侧，垂直居中于数据点区域
+    const tx = rect.left + cx + 14;
+    const ty = rect.top + m.top + ph * 0.15;
     const tw = tooltip.offsetWidth;
-    tooltip.style.left = Math.min(tx, window.innerWidth - tw - 10) + 'px';
-    tooltip.style.top = ty + 'px';
+    const th = tooltip.offsetHeight;
+    tooltip.style.left = Math.min(tx, rect.right - tw - 6) + 'px';
+    tooltip.style.top = Math.max(rect.top, ty) + 'px';
   });
   canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; restoreSnapshot(canvas); });
-  window.addEventListener('resize', () => { if (todayXpuMA.length) drawChart(); });
-})();
+}
+
+bindHover('xpu-chart', '#7c3aed');
+bindHover('mem-chart', '#ea580c');
+
+window.addEventListener('resize', () => { if (todayXpuMA.length) drawAllCharts(); });
 
 // ── 自动刷新 ──
 
@@ -514,6 +652,8 @@ function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(async () => {
     if (document.hidden) return;
+    // 仅今天自动刷新，历史日期数据不变
+    if (document.getElementById('filter-date').value !== getTodayStr()) return;
     try { await loadAndRender(); } catch(e) { console.error('Auto-refresh:', e); }
   }, 60000);
 }
