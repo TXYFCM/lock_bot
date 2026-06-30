@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>移动平均利用率 — 开发机集群</title>
+<style>
+:root {
+  --bg:        #f4f5f7;
+  --surface:   #ffffff;
+  --border:    #e2e8f0;
+  --text:      #1e293b;
+  --muted:     #94a3b8;
+  --xpu:       #7c3aed;
+  --mem:       #ea580c;
+  --xpu-ghost: rgba(124,58,237,0.30);
+  --mem-ghost: rgba(234,88,12,0.30);
+  --dot-ok:    #16a34a;
+  --dot-warn:  #d97706;
+  --dot-err:   #dc2626;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 28px 32px;
+  min-height: 100vh;
+  letter-spacing: -.01em;
+}
+
+/* ── Typography ── */
+h1 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.02em; }
+
+/* ── Login (light, kept familiar) ── */
+.login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
+.login-card {
+  background: #fff; border-radius: 12px; padding: 32px 28px; width: 340px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+}
+.login-card h2 { font-size: 16px; margin-bottom: 20px; text-align: center; color: #64748b; }
+.login-card input {
+  width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: 14px; margin-bottom: 12px; outline: none;
+}
+.login-card input:focus { border-color: var(--xpu); box-shadow: 0 0 0 3px rgba(167,139,250,.15); }
+.login-card button {
+  width: 100%; padding: 10px; background: var(--xpu); color: #fff; border: none;
+  border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 500;
+}
+.login-card button:hover { opacity: .9; }
+.login-card button:disabled { opacity: .5; cursor: not-allowed; }
+.login-error { color: var(--dot-err); font-size: 13px; margin-top: 10px; text-align: center; }
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+}
+.header-group { display: flex; align-items: center; gap: 16px; }
+.back-link {
+  font-size: 12px; color: var(--muted); text-decoration: none;
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+  transition: all .15s;
+}
+.back-link:hover { border-color: var(--xpu); color: var(--xpu); }
+
+/* ── Window toggles ── */
+.window-toggles { display: flex; gap: 2px; background: var(--surface); border-radius: 8px; padding: 3px; }
+.win-btn {
+  padding: 4px 14px; border: none; border-radius: 6px; font-size: 12px;
+  cursor: pointer; background: transparent; color: var(--muted);
+  font-weight: 500; font-family: "SF Mono", "JetBrains Mono", monospace;
+  transition: all .15s;
+}
+.win-btn:hover { color: var(--text); }
+.win-btn.active { background: var(--border); color: var(--text); }
+
+/* ── Status bar ── */
+.status-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; margin-bottom: 16px;
+  border-radius: 8px; font-size: 12px; background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.15);
+}
+.status-bar.caution { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.15); }
+.status-bar.error   { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.15); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dot-ok); flex-shrink: 0; }
+.status-bar.caution .status-dot { background: var(--dot-warn); }
+.status-bar.error   .status-dot { background: var(--dot-err); }
+.status-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: .8px;
+  padding: 2px 6px; border-radius: 3px;
+  background: rgba(34,197,94,.12); color: var(--dot-ok);
+}
+.status-bar.caution .status-tag { background: rgba(245,158,11,.12); color: var(--dot-warn); }
+.status-bar.error   .status-tag { background: rgba(239,68,68,.12); color: var(--dot-err); }
+.status-node-count { color: var(--muted); font-size: 11px; margin-left: 8px; }
+.status-time {
+  color: var(--muted); font-size: 11px; margin-left: auto;
+  font-family: "SF Mono", "JetBrains Mono", monospace;
+}
+
+/* ── Chart card ── */
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px 28px 20px;
+}
+.chart-legend {
+  display: flex; align-items: center; gap: 20px; margin-bottom: 16px; font-size: 12px;
+}
+.legend-item { display: flex; align-items: center; gap: 7px; }
+.legend-line { height: 2px; border-radius: 1px; }
+.legend-line.solid { width: 20px; }
+.legend-line.dash  { width: 20px; border: none; background: repeating-linear-gradient(90deg, var(--c) 0, var(--c) 4px, transparent 4px, transparent 7px); }
+
+.chart-wrap { position: relative; height: 360px; }
+.chart-wrap canvas { width: 100%; height: 100%; }
+
+/* ── X-axis ── */
+.x-axis {
+  display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);
+  padding: 6px 0 0 0; font-family: "SF Mono", "JetBrains Mono", monospace;
+}
+
+/* ── Summary ── */
+.summary {
+  display: flex; gap: 48px; margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid var(--border); justify-content: center;
+}
+.summary-col { text-align: center; }
+.summary-col .s-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.summary-row { display: flex; gap: 20px; justify-content: center; }
+.summary-item { text-align: center; }
+.summary-item .s-sub  { font-size: 10px; color: var(--muted); }
+.summary-item .s-val  {
+  font-size: 22px; font-weight: 700;
+  font-family: "SF Mono", "JetBrains Mono", "Consolas", monospace;
+}
+.s-val.xpu { color: var(--xpu); }
+.s-val.mem { color: var(--mem); }
+
+/* ── Tooltip ── */
+.tooltip {
+  position: fixed; background: #1e1f2a; color: #fff; padding: 6px 10px;
+  border-radius: 6px; font-size: 11px; pointer-events: none; white-space: nowrap;
+  z-index: 200; display: none; border: 1px solid #2a2b36;
+  font-family: "SF Mono", "JetBrains Mono", monospace;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+
+/* ── Loading ── */
+#loading-msg { text-align: center; padding: 80px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-form" class="login-container" style="display:none">
+  <h1 style="text-align:center;margin-bottom:20px;color:#1e293b">开发机集群移动平均利用率</h1>
+  <div class="login-card">
+    <h2>Lock Bot 登录</h2>
+    <input id="login-username" type="text" placeholder="用户名" autocomplete="username">
+    <input id="login-password" type="password" placeholder="密码" autocomplete="current-password">
+    <button id="login-btn">登 录</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:block">
+  <div class="header">
+    <div class="header-group">
+      <h1>移动平均利用率</h1>
+      <a href="/" class="back-link">← 仪表盘</a>
+    </div>
+    <div class="window-toggles" id="window-toggles">
+      <span class="win-btn active" data-window="1">5m</span>
+      <span class="win-btn" data-window="2">10m</span>
+      <span class="win-btn" data-window="6">30m</span>
+      <span class="win-btn" data-window="12">1h</span>
+    </div>
+  </div>
+  <div id="loading-msg">正在加载…</div>
+  <div class="status-bar" id="status-bar" style="display:none"></div>
+  <div class="chart-card" id="chart-card" style="display:none">
+    <div class="chart-legend">
+      <div class="legend-item">
+        <span class="legend-line solid" style="--c:var(--xpu);background:var(--xpu)"></span>
+        <span>XPU 今日</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-line dash" style="--c:var(--xpu-ghost)"></span>
+        <span style="color:var(--muted)">XPU 昨日</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-line solid" style="--c:var(--mem);background:var(--mem)"></span>
+        <span>显存 今日</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-line dash" style="--c:var(--mem-ghost)"></span>
+        <span style="color:var(--muted)">显存 昨日</span>
+      </div>
+    </div>
+    <div class="chart-wrap" id="chart-wrap">
+      <canvas id="main-chart"></canvas>
+    </div>
+    <div class="x-axis">
+      <span>00:00</span><span>02:00</span><span>04:00</span><span>06:00</span>
+      <span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span>
+      <span>16:00</span><span>18:00</span><span>20:00</span><span>22:00</span>
+    </div>
+    <div class="summary" id="summary" style="display:none">
+      <div class="summary-col">
+        <div class="s-label">XPU 移动平均</div>
+        <div class="summary-row">
+          <div class="summary-item"><div class="s-sub">今日</div><div class="s-val xpu" id="sum-xpu-today">--</div></div>
+        </div>
+      </div>
+      <div class="summary-col">
+        <div class="s-label">显存 移动平均</div>
+        <div class="summary-row">
+          <div class="summary-item"><div class="s-sub">今日</div><div class="s-val mem" id="sum-mem-today">--</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script type="module">
+import { loginLockBot, fetchLockBotList, fetchMonqueryUtilization, MONITORED_NODES } from './api.js';
+import { adaptNodeData } from './adapter.js';
+
+const SLOT_COUNT = 288;
+const tooltip = document.getElementById('tooltip');
+
+let token = null;
+let currentWindow = 1; // 默认 5min
+let todayXpuMA = new Array(SLOT_COUNT).fill(0);
+let todayMemMA = new Array(SLOT_COUNT).fill(0);
+let yestXpuMA  = null;
+let yestMemMA  = null;
+let todayNodes = []; // 缓存 raw nodes 以便窗口切换时重算
+let yestNodes  = [];
+let refreshTimer = null;
+
+// ── 工具函数 ──
+
+function formatDateStart(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}${m}${day}000000`;
+}
+function formatDateTime(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0'), min = String(d.getMinutes()).padStart(2,'0'), s = String(d.getSeconds()).padStart(2,'0');
+  return `${y}${m}${day}${h}${min}${s}`;
+}
+function formatDateEnd(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}${m}${day}235959`;
+}
+
+// ── Token ──
+
+const SESSION_KEY = 'xpu_monitor_session';
+function saveSession() {
+  try { const u = document.getElementById('login-username').value.trim(); localStorage.setItem(SESSION_KEY, JSON.stringify({ token, username: u, savedAt: Date.now() })); } catch(e){}
+}
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch(e){} }
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY); if (!raw) return null;
+    const d = JSON.parse(raw); if (Date.now() - d.savedAt > 4*3600*1000) { clearSession(); return null; }
+    return d;
+  } catch(e) { clearSession(); return null; }
+}
+
+// ── 数据处理 ──
+
+function processMonqueryData(monqueryData) {
+  if (!monqueryData) return [];
+  const dummyState = {};
+  for (const id of MONITORED_NODES) dummyState[`gpu-node-${String(id).padStart(2,'0')}`] = {};
+  return adaptNodeData(dummyState, monqueryData, 0, 'NODE', []).filter(n => n.hasMonqueryData);
+}
+
+function computeMA(nodes, windowSize) {
+  const n = nodes.filter(x => x.hasMonqueryData);
+  if (!n.length) return { xpu: new Array(SLOT_COUNT).fill(0), mem: new Array(SLOT_COUNT).fill(0) };
+
+  const xpuSlot = new Array(SLOT_COUNT).fill(0);
+  const memSlot = new Array(SLOT_COUNT).fill(0);
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    let xs = 0, ms = 0;
+    for (const node of n) { xs += node.avgUtil[i]; ms += node.avgMemUtil[i]; }
+    xpuSlot[i] = xs / n.length;
+    memSlot[i] = ms / n.length;
+  }
+
+  const xpuMA = new Array(SLOT_COUNT), memMA = new Array(SLOT_COUNT);
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const s = Math.max(0, i - windowSize + 1), cnt = i - s + 1;
+    let xs = 0, ms = 0;
+    for (let j = s; j <= i; j++) { xs += xpuSlot[j]; ms += memSlot[j]; }
+    xpuMA[i] = xs / cnt;
+    memMA[i] = ms / cnt;
+  }
+  return { xpu: xpuMA, mem: memMA };
+}
+
+// ── 登录 ──
+
+async function handleLogin() {
+  const u = document.getElementById('login-username').value.trim(), p = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn'), err = document.getElementById('login-error');
+  if (!u || !p) { err.textContent = '请输入用户名和密码'; return; }
+  btn.disabled = true; err.textContent = '';
+  try {
+    token = await loginLockBot(u, p);
+    const bots = await fetchLockBotList(token);
+    if (!bots || !bots.length) throw new Error('无可用 Bot');
+    saveSession();
+    document.getElementById('loading-msg').remove();
+    await loadAndRender();
+    startAutoRefresh();
+  } catch (e) {
+    if (token) { saveSession(); document.getElementById('loading-msg').remove(); startAutoRefresh(); return; }
+    clearSession(); btn.disabled = false; err.textContent = `登录失败：${e.message}`;
+  }
+}
+document.getElementById('login-btn').addEventListener('click', handleLogin);
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+// ── 窗口切换 ──
+
+document.getElementById('window-toggles').addEventListener('click', e => {
+  const btn = e.target.closest('.win-btn');
+  if (!btn) return;
+  document.querySelectorAll('.win-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentWindow = parseInt(btn.dataset.window, 10);
+  if (todayNodes.length) {
+    const td = computeMA(todayNodes, currentWindow);
+    todayXpuMA = td.xpu; todayMemMA = td.mem;
+    if (yestNodes.length) {
+      const yd = computeMA(yestNodes, currentWindow);
+      yestXpuMA = yd.xpu; yestMemMA = yd.mem;
+    }
+    drawChart();
+    updateSummary();
+  }
+});
+
+// ── 加载 ──
+
+async function loadAndRender() {
+  const now = new Date();
+  const todayStart = formatDateStart(now), todayEnd = formatDateTime(now);
+
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const yestStart = formatDateStart(yesterday), yestEnd = formatDateEnd(yesterday);
+
+  // 并行拉取今日 + 昨日数据
+  const [todayData, yestData] = await Promise.all([
+    fetchMonqueryUtilization(todayStart, todayEnd).catch(e => { console.error('Today fetch failed:', e); return null; }),
+    fetchMonqueryUtilization(yestStart, yestEnd).catch(e => { console.warn('Yesterday fetch failed:', e); return null; })
+  ]);
+
+  todayNodes = processMonqueryData(todayData);
+  yestNodes  = processMonqueryData(yestData);  // 计算移动平均
+  const td = computeMA(todayNodes, currentWindow);
+  todayXpuMA = td.xpu; todayMemMA = td.mem;
+
+  if (yestNodes.length) {
+    const yd = computeMA(yestNodes, currentWindow);
+    yestXpuMA = yd.xpu; yestMemMA = yd.mem;
+  } else {
+    yestXpuMA = null; yestMemMA = null;
+  }
+
+  renderStatusBar(!!todayData, now, todayNodes.length);
+  document.getElementById('chart-card').style.display = '';
+  drawChart();
+  updateSummary();
+}
+
+// ── 状态栏 ──
+
+function renderStatusBar(ok, now, nodeCount) {
+  const bar = document.getElementById('status-bar');
+  const timeStr = now.toLocaleTimeString('zh-CN');
+  let cls = '', tag = '';
+  if (!ok) { cls = 'error'; tag = 'ERROR'; }
+  else { tag = 'NORMAL'; }
+
+  bar.className = 'status-bar' + (cls ? ' ' + cls : '');
+  bar.innerHTML = `<span class="status-dot"></span><span class="status-tag">${tag}</span><span class="status-node-count">${nodeCount} nodes</span><span class="status-time">${timeStr}</span>`;
+  bar.style.display = 'flex';
+}
+
+// ── 图表 ──
+
+function drawGrid(ctx, w, h) {
+  ctx.save();
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = .5;
+  for (let i = 0; i <= SLOT_COUNT; i += 24) {
+    const x = (i / SLOT_COUNT) * w;
+    ctx.beginPath(); ctx.setLineDash([1, 4]); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (const pct of [.25, .5, .75]) {
+    const y = h - pct * h;
+    ctx.beginPath(); ctx.setLineDash([1, 4]); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+function drawChart() {
+  const canvas = document.getElementById('main-chart');
+  const wrap = document.getElementById('chart-wrap');
+  const ctx = canvas.getContext('2d');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  canvas.width = w; canvas.height = h;
+
+  drawGrid(ctx, w, h);
+  canvas._layers = [];
+
+  const margin = 24;
+
+  const drawLine = (data, color, dash) => {
+    ctx.strokeStyle = color; ctx.lineWidth = data === todayXpuMA || data === todayMemMA ? 2 : 1.5;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const x = (i / (SLOT_COUNT - 1)) * w;
+      const v = Math.max(0, Math.min(100, data[i]));
+      const y = h - margin - (v / 100) * (h - margin * 2);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  // 今日 — 实线
+  drawLine(todayXpuMA, '#7c3aed', []);
+  canvas._layers.push({ data: todayXpuMA, color: '#7c3aed', label: 'XPU' });
+  drawLine(todayMemMA, '#ea580c', []);
+  canvas._layers.push({ data: todayMemMA, color: '#ea580c', label: '显存' });
+
+  // 昨日 — 虚线 ghost
+  if (yestXpuMA) {
+    drawLine(yestXpuMA, 'rgba(124,58,237,0.28)', [5, 5]);
+    canvas._layers.push({ data: yestXpuMA, color: 'rgba(124,58,237,0.45)', label: 'XPU昨' });
+  }
+  if (yestMemMA) {
+    drawLine(yestMemMA, 'rgba(234,88,12,0.28)', [5, 5]);
+    canvas._layers.push({ data: yestMemMA, color: 'rgba(234,88,12,0.45)', label: '显存昨' });
+  }
+
+  // 快照
+  const img = new Image(); img.src = canvas.toDataURL(); canvas._snapshot = img;
+}
+
+function restoreSnapshot(canvas) {
+  if (!canvas._snapshot) return;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(canvas._snapshot, 0, 0);
+}
+
+// ── Summary ──
+
+function updateSummary() {
+  const nowIdx = new Date().getHours() * 12 + Math.floor(new Date().getMinutes() / 5);
+  const ei = Math.max(0, nowIdx - 1);
+  document.getElementById('summary').style.display = '';
+  document.getElementById('sum-xpu-today').textContent = todayXpuMA[ei].toFixed(1) + '%';
+  document.getElementById('sum-mem-today').textContent = todayMemMA[ei].toFixed(1) + '%';
+}
+
+// ── Hover ──
+
+(function bindHover() {
+  const canvas = document.getElementById('main-chart');
+  const margin = 24;
+  canvas.addEventListener('mousemove', e => {
+    const layers = canvas._layers; if (!layers || !layers.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ci = Math.max(0, Math.min(SLOT_COUNT - 1, Math.round(x / rect.width * (SLOT_COUNT - 1))));
+    restoreSnapshot(canvas);
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    layers.forEach(l => {
+      const v = l.data[ci], dotX = (ci / (SLOT_COUNT - 1)) * w;
+      const dotY = h - margin - (v / 100) * (h - margin * 2);
+      ctx.beginPath(); ctx.arc(dotX, dotY, 3.5, 0, Math.PI*2); ctx.fillStyle = l.color; ctx.fill();
+    });
+    const hh = Math.floor(ci / 12), mm = (ci % 12) * 5;
+    const vals = layers.map(l => `${l.label}:${l.data[ci].toFixed(1)}%`).join(' | ');
+    tooltip.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}  ${vals}`;
+    tooltip.style.display = 'block';
+    const tx = e.pageX + 12, ty = e.pageY - 34;
+    const tw = tooltip.offsetWidth;
+    tooltip.style.left = Math.min(tx, window.innerWidth - tw - 10) + 'px';
+    tooltip.style.top = ty + 'px';
+  });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; restoreSnapshot(canvas); });
+  window.addEventListener('resize', () => { if (todayXpuMA.length) drawChart(); });
+})();
+
+// ── 自动刷新 ──
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    if (document.hidden) return;
+    try { await loadAndRender(); } catch(e) { console.error('Auto-refresh:', e); }
+  }, 60000);
+}
+
+// ── 启动 ──
+
+(async function autoLogin() {
+  const saved = restoreSession();
+  if (saved && saved.token) {
+    try {
+      token = saved.token;
+      const bots = await fetchLockBotList(token);
+      if (bots && bots.length) {
+        document.getElementById('loading-msg').remove();
+        await loadAndRender(); startAutoRefresh(); return;
+      }
+    } catch(e) { console.error('Session restore failed:', e); }
+    clearSession(); token = null;
+  }
+  try {
+    token = await loginLockBot('admin', 'admin123');
+    const bots = await fetchLockBotList(token);
+    if (!bots || !bots.length) throw new Error('无可用 Bot');
+    saveSession();
+    document.getElementById('loading-msg').remove();
+    await loadAndRender(); startAutoRefresh();
+  } catch(e) {
+    console.error('Auto-login failed:', e);
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('login-form').style.display = '';
+    document.getElementById('login-error').textContent = '自动登录失败，请手动输入账号密码';
+  }
+})();
+</script>
+</body>
+</html>
