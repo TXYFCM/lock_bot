@@ -410,3 +410,52 @@ def test_partial_lock_idle_shows_partial_and_dashes():
     assert 'dev2-7 <font color="green">FREE</font>' in idle_row
     # idle group has no container -> "--"
     assert "| -- |" in idle_row
+
+
+def test_single_group_mixed_cards_splits_card_status_and_xpu():
+    # One user locks the whole node (a single render group dev0-7), but card0 is high-mem
+    # while card1-7 are idle. Cards have only BUSY/FREE — so 卡状态 splits into contiguous
+    # runs "dev0 BUSY dev1-7 FREE" within one cell, and XPU%/MEM% + 容器名 split to match.
+    # Node status stays PARTIAL (mixed per-card mem).
+    state = {
+        "node1": [
+            {
+                "dev_id": i,
+                "status": "exclusive",
+                "dev_model": "a800",
+                "current_users": [{"user_id": "u1", "start_time": 0, "duration": 999999999999}],
+            }
+            for i in range(8)
+        ]
+    }
+    cfg = Config(
+        {
+            "BOT_TYPE": "DEVICE",
+            "CLUSTER_CONFIGS": {"node1": {"ip": "10.0.0.1", "devices": ["a800"] * 8}},
+            "QUERY_TIP": "",
+            "MEM_BUSY_THRESHOLD": 10,
+        }
+    )
+    out = build_device_query(
+        state,
+        None,
+        cfg,
+        node_filter="node1",
+        xpu_usage={
+            "node1": NodeUsage(
+                util=20.0,
+                mem=15.0,
+                container="job_a",
+                per_card=[CardUsage(90.0, 80.0, "job_a")] + [CardUsage(0.0, 0.0, "")] * 7,
+            )
+        },
+    )
+    row = next(ln for ln in out.splitlines() if "u1" in ln)
+    # Node status: mixed -> PARTIAL (unchanged).
+    assert "PARTIAL" in row
+    # 卡状态: two contiguous runs in one cell.
+    assert 'dev0 <font color="red">BUSY</font> dev1-7 <font color="green">FREE</font>' in row
+    # XPU%/MEM%: per-run averages, positionally aligned with the card-status segments.
+    assert "90.0%/80.0% 0.0%/0.0%" in row
+    # 容器名: busy run's container, idle run has none -> "--".
+    assert "| job_a -- |" in row

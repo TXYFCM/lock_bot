@@ -111,6 +111,34 @@ def _dev_gpu_cell(usage, dev_ids, threshold, fallback):
     return f"{_dev_range(dev_ids)} {badge}"
 
 
+def _contiguous_card_runs(usage, dev_ids, threshold):
+    """Split ``dev_ids`` into maximal contiguous runs of same per-card mem category.
+
+    Returns ``[(run_dev_ids, category)]`` with category ``"busy"`` (mem > threshold)
+    or ``"free"`` (mem <= threshold or None), in dev-index order. Returns ``None``
+    when per_card is missing/empty or any index is out of range (caller falls back
+    to the single-badge ``_dev_gpu_cell``). Cards have only two states — there is no
+    PARTIAL at the card level. DEVICE-only — never call this from the NODE path.
+    """
+    per_card = getattr(usage, "per_card", None) if usage is not None else None
+    if not per_card or any(i >= len(per_card) for i in dev_ids):
+        return None
+    runs = []
+    cur, cur_cat = [], None
+    for i in dev_ids:
+        mem = per_card[i].mem
+        cat = "busy" if (mem is not None and mem > threshold) else "free"
+        if cur and cat == cur_cat:
+            cur.append(i)
+        else:
+            if cur:
+                runs.append((cur, cur_cat))
+            cur, cur_cat = [i], cat
+    if cur:
+        runs.append((cur, cur_cat))
+    return runs
+
+
 # GPU-memory-based sort tiers for DEVICE bot: FREE < PARTIAL < BUSY < N/A.
 _GPU_CAT_RANK = {"free": 0, "partial": 1, "busy": 2, "na": 3}
 
@@ -189,8 +217,18 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         first_row = True
         for is_idle, fields in rows:
             dev_ids = fields["dev_ids"]
-            # GPU-memory-based per-group card status: "dev0-7 FREE" or "dev0-3 BUSY".
-            dev_cell = _dev_gpu_cell(usage, dev_ids, threshold, cat)
+            # Per-card granular 卡状态: split the group into contiguous BUSY/FREE runs
+            # (a card has only two states, never PARTIAL). e.g. "dev0 BUSY dev1-7 FREE".
+            runs = _contiguous_card_runs(usage, dev_ids, threshold) if xpu_on else None
+            if runs is None:
+                # per_card missing/out of range -> single-badge fallback.
+                dev_cell = _dev_gpu_cell(usage, dev_ids, threshold, cat)
+            else:
+                segs = []
+                for run_ids, run_cat in runs:
+                    badge = _STATUS_BUSY if run_cat == "busy" else _STATUS_FREE
+                    segs.append(f"{_dev_range(run_ids)} {badge}")
+                dev_cell = " ".join(segs)
             if is_idle:
                 user_cell = _UNLOCK
                 dur_cell = "--"
@@ -204,17 +242,32 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
             # Column order: IP | lock同学 | 节点状态 | 卡状态 | 剩余时间
             cells = [node_cell, user_cell, node_status_cell, dev_cell, dur_cell]
             if xpu_on:
-                if uniform:
-                    util_cell = _format_xpu_cells(usage)[0]
-                    container_cell = _max_mem_container(usage, all_dev_ids)
-                else:
-                    util_cell = _group_xpu_cells(usage, dev_ids)[0]
-                    container_cell = _max_mem_container(usage, dev_ids)
-                # Empty container -> "--", except on NA (collection-failed) nodes where the
-                # container column stays blank alongside the N/A util cell (scenario 7).
                 na_node = usage is None or (usage.util is None and usage.mem is None)
-                if not container_cell and not na_node:
-                    container_cell = "--"
+                if runs is None or (len(runs) == 1 and uniform):
+                    # Single run on a single-group node -> keep the node-average util and
+                    # whole-node max-mem container (preserves existing uniform behavior).
+                    if uniform:
+                        util_cell = _format_xpu_cells(usage)[0]
+                        container_cell = _max_mem_container(usage, all_dev_ids)
+                    else:
+                        util_cell = _group_xpu_cells(usage, dev_ids)[0]
+                        container_cell = _max_mem_container(usage, dev_ids)
+                    # Empty container -> "--", except on NA (collection-failed) nodes where
+                    # the container column stays blank alongside the N/A util cell.
+                    if not container_cell and not na_node:
+                        container_cell = "--"
+                else:
+                    # Multiple runs -> per-run avg util + per-run max-mem container, joined
+                    # with a single space so each segment lines up with the 卡状态 segments.
+                    util_segs, ctr_segs = [], []
+                    for run_ids, _run_cat in runs:
+                        util_segs.append(_group_xpu_cells(usage, run_ids)[0])
+                        ctr = _max_mem_container(usage, run_ids)
+                        if not ctr and not na_node:
+                            ctr = "--"
+                        ctr_segs.append(ctr)
+                    util_cell = " ".join(util_segs)
+                    container_cell = " ".join(ctr_segs)
                 cells = [*cells, util_cell, container_cell]
             lines.append(_md_row(*cells))
             first_row = False
