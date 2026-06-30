@@ -181,7 +181,7 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
     if tip:
         lines.append(tip + "\n")
 
-    # ── markdown table ───────────────────────────────────────────────────
+    # ── table ────────────────────────────────────────────────────────────
     header_key = "query.table_header_xpu" if xpu_usage is not None else "query.table_header"
     lines.append(t(header_key, config=config))
     cluster_configs = config.get_val("CLUSTER_CONFIGS") if config else {}
@@ -203,11 +203,29 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
         rows = render_device_lines(devs, grouped_usage, idle_groups, config=config)
         xpu_on = xpu_usage is not None
         usage = xpu_usage.get(node_key) if xpu_on else None
+        # PARTIAL nodes: expand each row into per-GPU-memory-run sub-rows so that
+        # BUSY and FREE cards each get their own table row instead of one inline-split cell.
+        expanded_partial = False
+        if cat == "partial" and xpu_on:
+            new_rows = []
+            for is_idle, fields in rows:
+                runs = _contiguous_card_runs(usage, fields["dev_ids"], threshold)
+                if runs and len(runs) > 1:
+                    expanded_partial = True
+                    for run_ids, _run_cat in runs:
+                        f = dict(fields)
+                        f["dev_ids"] = list(run_ids)
+                        if fields["dev"]:
+                            f["dev"] = _dev_range(run_ids)
+                        new_rows.append((is_idle, f))
+                else:
+                    new_rows.append((is_idle, fields))
+            rows = new_rows
         # A node renders as one averaged block when it has a single group (whole node by one
         # user, or fully idle homogeneous). With multiple lock/idle groups (mixed lockers), the
         # XPU%/MEM% + container are shown per group (averaged over that group's cards).
         group_count = sum(1 for _is_idle, f in rows if f["dev"])
-        uniform = group_count <= 1
+        uniform = (group_count <= 1) and not expanded_partial
         # Union of all dev indices rendered for this node (used by the uniform branch's
         # max-mem container cell, where a single row stands for the whole node).
         all_dev_ids = sorted({i for _is_idle, f in rows for i in f["dev_ids"]})
@@ -237,8 +255,12 @@ def build_device_query(bot_state, user_id, config, node_filter=None, xpu_usage=N
                 user_cell = f"{fields['user']}（{mode}）".strip()
                 dur_cell = fields["dur"] or "--"
             node_cell = _node_label(cluster_configs, node_key) if first_row else ""
-            # GPU-memory-based node status badge — same for every row of this node.
-            node_status_cell = _STATUS_BADGE.get(cat, _STATUS_NA)
+            # GPU-memory-based node status badge. For expanded PARTIAL nodes, only
+            # the first row carries the badge; subsequent rows leave the cell blank.
+            if expanded_partial:
+                node_status_cell = _STATUS_BADGE.get(cat, _STATUS_NA) if first_row else ""
+            else:
+                node_status_cell = _STATUS_BADGE.get(cat, _STATUS_NA)
             # Column order: IP | lock同学 | 节点状态 | 卡状态 | 剩余时间
             cells = [node_cell, user_cell, node_status_cell, dev_cell, dur_cell]
             if xpu_on:

@@ -414,9 +414,9 @@ def test_partial_lock_idle_shows_partial_and_dashes():
 
 def test_single_group_mixed_cards_splits_card_status_and_xpu():
     # One user locks the whole node (a single render group dev0-7), but card0 is high-mem
-    # while card1-7 are idle. Cards have only BUSY/FREE — so 卡状态 splits into contiguous
-    # runs "dev0 BUSY dev1-7 FREE" within one cell, and XPU%/MEM% + 容器名 split to match.
-    # Node status stays PARTIAL (mixed per-card mem).
+    # while card1-7 are idle. PARTIAL nodes now expand each GPU-memory run into its own row,
+    # so we get two rows: one for the BUSY run (dev0) and one for the FREE run (dev1-7).
+    # Node status stays PARTIAL for both rows.
     state = {
         "node1": [
             {
@@ -450,12 +450,65 @@ def test_single_group_mixed_cards_splits_card_status_and_xpu():
             )
         },
     )
-    row = next(ln for ln in out.splitlines() if "u1" in ln)
-    # Node status: mixed -> PARTIAL (unchanged).
-    assert "PARTIAL" in row
-    # 卡状态: two contiguous runs in one cell.
-    assert 'dev0 <font color="red">BUSY</font> dev1-7 <font color="green">FREE</font>' in row
-    # XPU%/MEM%: per-run averages, positionally aligned with the card-status segments.
-    assert "90.0%/80.0% 0.0%/0.0%" in row
-    # 容器名: busy run's container, idle run has none -> "--".
-    assert "| job_a -- |" in row
+    rows = [ln for ln in out.splitlines() if "u1" in ln]
+    assert len(rows) == 2  # expanded: one row per GPU-mem run
+    busy_row, free_row = rows
+    # First row: BUSY run (dev0), with IP + PARTIAL on the first row only.
+    assert "node1(10.0.0.1)" in busy_row
+    assert "PARTIAL" in busy_row
+    assert 'dev0 <font color="red">BUSY</font>' in busy_row
+    assert "90.0%/80.0%" in busy_row
+    assert "| job_a |" in busy_row
+    # Second row: FREE run (dev1-7), no IP or PARTIAL.
+    assert 'dev1-7 <font color="green">FREE</font>' in free_row
+    assert "0.0%/0.0%" in free_row
+    assert "| -- |" in free_row
+    assert "node1" not in free_row
+    assert "PARTIAL" not in free_row
+
+
+def test_all_idle_partial_node_expands_to_per_card_rows():
+    # All cards unlocked, but GPU-mem mixed: dev0 BUSY (80% > 10), dev1-7 FREE (0%).
+    # PARTIAL node → expand idle group into per-GPU-run rows.
+    state = {
+        "node1": [
+            {"dev_id": i, "status": "idle", "dev_model": "a800", "current_users": []}
+            for i in range(8)
+        ]
+    }
+    cfg = Config(
+        {
+            "BOT_TYPE": "DEVICE",
+            "CLUSTER_CONFIGS": {"node1": {"ip": "10.0.0.1", "devices": ["a800"] * 8}},
+            "QUERY_TIP": "",
+        }
+    )
+    out = build_device_query(
+        state,
+        None,
+        cfg,
+        node_filter="node1",
+        xpu_usage={
+            "node1": NodeUsage(
+                util=10.0,
+                mem=10.0,
+                container="",
+                per_card=[CardUsage(90.0, 80.0, "job_x")] + [CardUsage(0.0, 0.0, "")] * 7,
+            )
+        },
+    )
+    rows = [ln for ln in out.splitlines() if "node1(10.0.0.1)" in ln or "null" in ln]
+    # Should have 2 rows (BUSY run + FREE run), both with "null" since all idle.
+    # IP + PARTIAL only on first row.
+    assert len(rows) >= 2
+    # First row: dev0 BUSY with container, IP + PARTIAL.
+    assert "node1(10.0.0.1)" in rows[0]
+    assert "PARTIAL" in rows[0]
+    assert 'dev0 <font color="red">BUSY</font>' in rows[0]
+    assert "null" in rows[0]
+    assert "| job_x |" in rows[0]
+    # Second row: dev1-7 FREE, no IP/PARTIAL, no container → "--".
+    assert 'dev1-7 <font color="green">FREE</font>' in rows[1]
+    assert "null" in rows[1]
+    assert "| -- |" in rows[1]
+    assert "PARTIAL" not in rows[1]
