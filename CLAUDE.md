@@ -85,7 +85,7 @@ Logs also tail to `/tmp/jieLockBot.log`. The secrets (`JWT_SECRET`, `ENCRYPTION_
 ### Core Library (`python/lockbot/core/`)
 
 **Bot class hierarchy:**
-- `BaseLockBot` (`base_bot.py`) — common infrastructure: config/state/lock/adapter, timer routine, help text, error formatting
+- `BaseLockBot` (`base_bot.py`) — common infrastructure: config/state/lock/adapter, timer routine, help text, error formatting, `_record_occupancy_end` hook (calls `_on_occupancy_end` callback to persist occupancy records on unlock/expiry/kickout)
 - `DeviceBot` (`device_bot.py`) — per-GPU locking with exclusive/shared modes, device usage alert, command parsing via regex
 - `NodeBot` (`node_bot.py`) — whole-node locking with exclusive/shared modes
 - `QueueBot` (`queue_bot.py`) — extends `NodeBot`, adds `book`/`take` commands for queue scheduling with auto-promotion
@@ -96,15 +96,15 @@ Logs also tail to `/tmp/jieLockBot.log`. The secrets (`JWT_SECRET`, `ENCRYPTION_
 
 **BotScheduler** (`scheduler.py`): Single daemon thread with a min-heap of `(fire_at, generation, bot_id)`. Replaces per-bot `threading.Timer`. On each tick, calls `bot._check_and_notify()` which checks lock expiry, sends notifications, then returns the next desired check interval. Tracks consecutive failures and fires `on_fatal_error` callback after 5 failures.
 
-**Config** (`config.py`): Instance-level `Config(config_dict)` with `get_val()`/`set_val()`. Class-level methods (`Config.get()`, `Config.set()`) are deprecated. Paths like `STATE_FILENAME` are derived from `BOT_ID + DATA_DIR`. Schema defines defaults, descriptions, and whether env override is allowed.
+**Config** (`config.py`): Instance-level `Config(config_dict)` with `get_val()`/`set_val()`. Class-level methods (`Config.get()`, `Config.set()`) are deprecated. Paths like `STATE_FILENAME` are derived from `BOT_ID + DATA_DIR`. Schema defines defaults, descriptions, and whether env override is allowed. Notable GPU-related keys: `XPU_USAGE_TTL` (cache TTL), `MEM_BUSY_THRESHOLD` (GPU mem % to consider busy), `CONTAINER_MIN_MEM_PCT` (min GPU mem % to show container name).
 
 **MessageAdapter** (`message_adapter.py`): Abstract base for IM platforms, with methods: `verify_request`, `decrypt_payload`, `extract_command`, `build_reply`, `send`. Only `InfoflowAdapter` (如流, in `platforms/infoflow.py`) is implemented. ROADMAP plans Slack/DingTalk/Feishu/WeChat adapters.
 
 **Command routing** (`handler.py`): Parses incoming text → dispatches to bot methods (`lock`, `slock`, `unlock`, `kickout`, `book`, `take`, `query`). Unknown node names default to query. Empty input = query all.
 
-**Query rendering** (`query_render.py`): Builds markdown tables for `/query` output. `build_device_query` for DEVICE bots (device-level rows), `build_node_query` for NODE/QUEUE bots (node-level rows). Sort order: my nodes → idle (FREE) → PARTIAL → BUSY, within each tier by remaining duration ascending. When `build_device_query` is passed an `xpu_usage` map it renders a 7-column table (adds GPU 利用率 + container name, shown only on each node's first row); otherwise 5 columns.
+**Query rendering** (`query_render.py`): Builds markdown tables for `/query` output. `build_device_query` for DEVICE bots (device-level rows), `build_node_query` for NODE/QUEUE bots (node-level rows). Sort order: my nodes → idle (FREE) → PARTIAL → BUSY, within each tier by remaining duration ascending. When `build_device_query` is passed an `xpu_usage` map it renders an 8-column table (adds GPU 利用率/MEM%, GPU 显存利用率, and container name — container shown only when GPU mem ≥ `CONTAINER_MIN_MEM_PCT` threshold); otherwise 5 columns. Mixed-lock nodes (some cards locked, some free) show per-card breakdown with individual container names.
 
-**GPU usage collection** (`xpu_collector.py`): `collect_node_usage(node_ips, config)` SSHes into nodes running `xpu-smi` / `xpu-smi -m` to compute node-average GPU utilization and resolve the occupying Docker container name (`/proc/<pid>/cgroup` → `docker ps`). Returns `NodeUsage(util, container)` namedtuples, with per-node TTL caching (`XPU_USAGE_TTL`) and `ThreadPoolExecutor` concurrency; any failure degrades to `NodeUsage(None, "")`. Invoked by `DeviceBot.query` only on the bare-AT path (no node argument), with SSH performed outside the bot lock.
+**GPU usage collection** (`xpu_collector.py`): `collect_node_usage(node_ips, config)` SSHes into nodes running a remote script that wraps `xpu-smi` / `xpu-smi -m` / container resolution. Returns `NodeUsage(util, mem, container, per_card)` namedtuples where `per_card` is a list of `CardUsage(util, mem, container)` per GPU card. Util/mem are node-average percentages; per-card data enables DEVICE bots to show individual card containers in mixed-lock renders. Container resolution uses `/proc/<pid>/cgroup` → `docker ps`. Uses per-node TTL caching (`XPU_USAGE_TTL`) and `ThreadPoolExecutor` concurrency; any failure degrades to `NodeUsage(None, None, "")`. Invoked by `DeviceBot.query` only on the bare-AT path (no node argument), with SSH performed outside the bot lock.
 
 **Usage rendering** (`usage_render.py`): Configurable line templating via `USAGE_LINE_TEMPLATE` / `USAGE_IDLE_TEMPLATE`, with `USAGE_SORT` (name/dur_asc/dur_desc) and `USAGE_GROUP` (none/idle_first/idle_last). `render_line()` gracefully falls back to a default template on format errors.
 
@@ -114,12 +114,17 @@ Logs also tail to `/tmp/jieLockBot.log`. The secrets (`JWT_SECRET`, `ENCRYPTION_
 
 **`yjb_xpu_smi/`**: Standalone xpu-smi monitoring scripts (not part of the lockbot package).
 
+**Device usage alert** (`device_usage_alert.py`): Checks GPU utilization levels and sends alerts when nodes exceed configurable busy/idle thresholds.
+
+**Device usage utils** (`device_usage_utils.py`): Shared helpers for computing per-node busy/free card counts from lock state and GPU usage data.
+
 ### Backend API Structure (`python/lockbot/backend/app/`)
 
 | Module | Purpose |
 |--------|---------|
 | `auth/` | Register, login, logout, JWT dependencies, role-based guards |
 | `bots/` | CRUD, start/stop/restart lifecycle, webhook handler, encryption, BotManager |
+| `bots/occupancy.py` | OccupancyRecord model + service: tracks who occupied which node, when, for how long. Auto-cleans records older than 8 days. Exposed at `GET /api/bots/{bot_id}/occupancy?date=YYYY-MM-DD&node=...` |
 | `admin/` | User management (super_admin only) |
 | `settings/` | Global settings key-value store |
 | `audit/` | Audit log recording and querying |
@@ -132,7 +137,7 @@ Logs also tail to `/tmp/jieLockBot.log`. The secrets (`JWT_SECRET`, `ENCRYPTION_
 
 ### Testing
 
-- `tests/core/` — unit tests for bot logic, config, scheduler, query rendering, usage rendering
+- `tests/core/` — unit tests for bot logic, config, scheduler, query rendering, usage rendering, XPU collection, device usage
 - `tests/backend/` — API integration tests using FastAPI `TestClient` with in-memory SQLite (StaticPool), rate limiter disabled, bot auto-start patched to `RuntimeError`
 - `conftest.py` fixtures: `client` (TestClient with DB override), `auth_header` (JWT token), `admin_header` (admin JWT), `db_session` (raw SQLAlchemy session)
 - Test config is set before importing backend modules: `DATABASE_URL = "sqlite://"`, `ALLOW_REGISTER = True`
