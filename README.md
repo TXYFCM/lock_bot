@@ -10,6 +10,7 @@
 cd /home/users/v_qiujie04/monitor
 node proxy.js                     # 启动本地代理（端口 8900）
 # 浏览器打开 http://localhost:8900/index.html
+# 价值展示页 http://10.206.192.17:8900/value.html
 ```
 
 页面使用 **Lock Bot 平台账号密码** 登录。Token 自动存入 `localStorage`，4 小时有效期内刷新无需重登。
@@ -65,6 +66,7 @@ node proxy.js                     # 启动本地代理（端口 8900）
 | `index.html` | 前端仪表盘 UI + 内联 CSS + 所有渲染/交互逻辑（约 1550 行，ES Module） |
 | `api.js` | API 调用层（纯 fetch 封装，零业务逻辑，约 140 行） |
 | `adapter.js` | 数据适配层（原始 API 响应 → `NodeData[]`，约 420 行） |
+| `value.html` | 价值展示页（面向管理层，说明监控数据如何驱动决策） |
 | `proxy.js` | 本地代理（Node.js 原生 `http` 模块，约 140 行） |
 | `config.json` | 部署配置（代理端口 + 后端地址） |
 | `deploy.sh` | 一键部署脚本 |

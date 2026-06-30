@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XPU 集群资源监控 — 价值说明</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+
+/* ── Hero ── */
+.hero { text-align: center; padding: 80px 20px 60px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,.12) 0%, transparent 60%); }
+.hero h1 { font-size: 42px; font-weight: 800; letter-spacing: -.5px; position: relative; }
+.hero h1 .accent { color: #a78bfa; }
+.hero .subtitle { font-size: 18px; color: #94a3b8; margin-top: 16px; max-width: 640px; margin-left: auto; margin-right: auto; position: relative; }
+.hero .meta { display: flex; gap: 24px; justify-content: center; margin-top: 28px; position: relative; }
+.hero .meta-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #64748b; }
+.hero .meta-item .num { font-size: 26px; font-weight: 700; color: #cbd5e1; font-family: "SF Mono","JetBrains Mono",monospace; }
+
+/* ── Section ── */
+.section { max-width: 1080px; margin: 0 auto; padding: 64px 20px; }
+.section-title { font-size: 26px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+.section-title .hl { color: #a78bfa; }
+.section-desc { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 40px; }
+
+/* ── Value Cards ── */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 768px) { .cards { grid-template-columns: 1fr; } }
+.card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px 24px; transition: border-color .2s, transform .2s; }
+.card:hover { border-color: #7c3aed; transform: translateY(-2px); }
+.card .icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
+.card .icon.purple { background: rgba(124,58,237,.15); color: #a78bfa; }
+.card .icon.green  { background: rgba(16,185,129,.15); color: #34d399; }
+.card .icon.amber  { background: rgba(245,158,11,.15); color: #fbbf24; }
+.card .icon.blue   { background: rgba(14,165,233,.15); color: #38bdf8; }
+.card .icon.red    { background: rgba(239,68,68,.15); color: #f87171; }
+.card .icon.teal   { background: rgba(20,184,166,.15); color: #2dd4bf; }
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.card p { font-size: 13px; color: #94a3b8; }
+
+/* ── Scenarios ── */
+.scenarios { display: flex; flex-direction: column; gap: 16px; }
+.scenario { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; display: flex; gap: 20px; align-items: flex-start; }
+.scenario .sc-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.scenario .sc-icon.up   { background: rgba(239,68,68,.12); color: #f87171; }
+.scenario .sc-icon.down { background: rgba(16,185,129,.12); color: #34d399; }
+.scenario .sc-icon.opt  { background: rgba(245,158,11,.12); color: #fbbf24; }
+.scenario .sc-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.scenario .sc-body .sc-trigger { font-size: 12px; color: #a78bfa; font-weight: 600; margin-bottom: 6px; font-family: "SF Mono","JetBrains Mono",monospace; }
+.scenario .sc-body p { font-size: 13px; color: #94a3b8; }
+.scenario .sc-body .sc-action { margin-top: 8px; font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
+.scenario .sc-body .sc-action::before { content: '→'; color: #7c3aed; font-weight: 700; }
+
+/* ── KPI Table ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 768px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+.kpi-item { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px 18px; text-align: center; }
+.kpi-item .kpi-val { font-size: 28px; font-weight: 700; font-family: "SF Mono","JetBrains Mono",monospace; }
+.kpi-item .kpi-val.purple { color: #a78bfa; }
+.kpi-item .kpi-val.green  { color: #34d399; }
+.kpi-item .kpi-val.amber  { color: #fbbf24; }
+.kpi-item .kpi-val.blue   { color: #38bdf8; }
+.kpi-item .kpi-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+.kpi-item .kpi-note { font-size: 11px; color: #475569; margin-top: 2px; }
+
+/* ── Data Flow ── */
+.flow { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 20px 0; }
+.flow-node { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 20px; text-align: center; }
+.flow-node .fn-title { font-size: 13px; font-weight: 600; }
+.flow-node .fn-detail { font-size: 11px; color: #64748b; margin-top: 2px; }
+.flow-arrow { color: #7c3aed; font-size: 22px; padding: 0 12px; font-weight: 700; }
+
+/* ── Footer ── */
+.footer { text-align: center; padding: 40px 20px; color: #475569; font-size: 12px; border-top: 1px solid #1e293b; }
+.footer a { color: #7c3aed; text-decoration: none; }
+.footer a:hover { color: #a78bfa; }
+
+/* ── Nav ── */
+.nav { display: flex; justify-content: center; gap: 32px; padding: 16px 20px; background: rgba(15,23,42,.8); backdrop-filter: blur(8px); border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 10; }
+.nav a { color: #94a3b8; text-decoration: none; font-size: 13px; transition: color .15s; }
+.nav a:hover { color: #e2e8f0; }
+
+/* Divider */
+.divider { border: none; border-top: 1px solid #1e293b; max-width: 1080px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<!-- ════════ Nav ════════ -->
+<nav class="nav">
+  <a href="index.html">← 返回仪表盘</a>
+  <a href="#value">核心价值</a>
+  <a href="#decision">决策场景</a>
+  <a href="#kpi">关键指标</a>
+</nav>
+
+<!-- ════════ Hero ════════ -->
+<section class="hero">
+  <h1>开发机集群 <span class="accent">XPU 资源监控</span></h1>
+  <p class="subtitle">实时透视 48 节点 × 8 卡 GPU 集群的使用全貌，用数据驱动资源决策，让每一张 XPU 卡都发挥价值</p>
+  <div class="meta">
+    <div class="meta-item"><span class="num">48</span> 监控节点</div>
+    <div class="meta-item"><span class="num">384</span> XPU 卡</div>
+    <div class="meta-item"><span class="num">288</span> 槽/天 (5min粒度)</div>
+    <div class="meta-item"><span class="num">2</span> 数据源融合</div>
+  </div>
+</section>
+
+<!-- ════════ 核心价值 ════════ -->
+<section class="section" id="value">
+  <h2 class="section-title">核心<span class="hl">价值</span></h2>
+  <p class="section-desc">从"看不见"到"一目了然"——监控数据如何转化为管理决策依据</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="icon purple">📊</div>
+      <h3>资源利用率透明化</h3>
+      <p>实时掌握 384 张 XPU 卡的 XPU 使用率与显存占用率，消灭资源盲区。288 槽全天候追踪，每 5 分钟粒度，谁在用、用多少，一目了然。</p>
+    </div>
+    <div class="card">
+      <div class="icon red">⚠️</div>
+      <h3>僵尸锁自动识别</h3>
+      <p>2 小时滑动窗口持续扫描：有 Lock Bot 锁但 XPU 与显存利用率双双低于 10% → 标记为僵尸锁。精准识别"锁而不用"的浪费，为资源回收提供事实依据。</p>
+    </div>
+    <div class="card">
+      <div class="icon green">📈</div>
+      <h3>容量规划数据支撑</h3>
+      <p>移动平均趋势图（5m/10m/30m/1h）+ 昨日对比曲线，直观呈现利用率走势。采购新卡还是回收闲置？数据说了算，告别拍脑袋决策。</p>
+    </div>
+    <div class="card">
+      <div class="icon blue">🔒</div>
+      <h3>资源占用可追溯</h3>
+      <p>Lock Bot 锁记录 + 当天历史占用完整留存，谁在什么时间锁了哪张卡、锁了多久——全程可查。防止资源圈占，支撑公平调度。</p>
+    </div>
+    <div class="card">
+      <div class="icon amber">⚡</div>
+      <h3>运营效率提升</h3>
+      <p>60 秒自动刷新 + 双数据源融合（Lock Bot 占用 + Monquery 利用率），替代人工逐节点巡检。异常状态（僵尸锁）主动标记，问题发现前置到影响业务之前。</p>
+    </div>
+    <div class="card">
+      <div class="icon teal">💰</div>
+      <h3>硬件成本优化</h3>
+      <p>识别长期低利用率节点 → 评估是否释放或重新分配。单张 XPU 卡成本可观，提升 10% 利用率即相当于节省数十万硬件投入，ROI 清晰可量化。</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════ 决策场景 ════════ -->
+<section class="section" id="decision">
+  <h2 class="section-title">数据 → <span class="hl">决策</span></h2>
+  <p class="section-desc">监控指标如何直接指导管理动作——三个典型场景</p>
+
+  <div class="scenarios">
+    <div class="scenario">
+      <div class="sc-icon up">🔼</div>
+      <div class="sc-body">
+        <h3>场景一：扩容决策</h3>
+        <div class="sc-trigger">触发信号：XPU 平均利用率连续多日 > 50%</div>
+        <p>当 average 视图显示集群 XPU 利用率持续处于高位（紫色曲线长期 > 50%），且 FREE 节点占比持续走低，说明现有资源已接近瓶颈。Leader 可据此数据向上申请新增节点预算，有据可依。</p>
+        <div class="sc-action">数据来源：average 视图 · XPU 移动平均曲线 · FREE 节点占比趋势</div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="sc-icon down">🔽</div>
+      <div class="sc-body">
+        <h3>场景二：资源回收</h3>
+        <div class="sc-trigger">触发信号：节点 LOCKED 但利用率 < 10% 持续 ≥ 2 小时（僵尸锁）</div>
+        <p>节点列表中红色"⚠已锁定≥2h未使用"标记出现时，说明该节点被 Lock Bot 锁定但实际未使用。管理者可直接联系持锁人确认是否仍需占用，释放后可供其他团队使用，避免 GPU 卡空转浪费。</p>
+        <div class="sc-action">数据来源：个人视图 · 僵尸锁 badge · 占用红条 hover 查看持锁人</div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="sc-icon opt">⚙️</div>
+      <div class="sc-body">
+        <h3>场景三：调度策略优化</h3>
+        <div class="sc-trigger">触发信号：PARTIAL 状态节点占比持续偏高</div>
+        <p>PARTIAL 节点 = 8 卡中仅部分被占用（1~7 卡 BUSY）。若此类节点占比过高，说明整机锁（NODE 模式）造成大量碎片化浪费。Leader 可推动切换为单卡锁（DEVICE 模式），将空闲卡分配给其他任务，提升整体利用率。</p>
+        <div class="sc-action">数据来源：个人视图 · PARTIAL badge 统计 · 展开查看逐卡详情</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════ KPI ════════ -->
+<section class="section" id="kpi">
+  <h2 class="section-title">关键<span class="hl">指标</span></h2>
+  <p class="section-desc">仪表盘追踪的核心 KPI 及管理意义</p>
+
+  <div class="kpi-grid">
+    <div class="kpi-item">
+      <div class="kpi-val purple">XPU 平均利用率</div>
+      <div class="kpi-label">衡量 GPU 计算资源使用效率</div>
+      <div class="kpi-note">10:00→当前 · 仅 node 节点 · 等权平均</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val green">显存平均利用率</div>
+      <div class="kpi-label">衡量 GPU 显存资源使用效率</div>
+      <div class="kpi-note">8 卡逐槽取均值 · 再跨节点平均</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val amber">LOCKED 卡数</div>
+      <div class="kpi-label">当前被 Lock Bot 锁定的卡总数</div>
+      <div class="kpi-note">对比 BUSY 卡数 → 发现"锁而不用"</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val blue">BUSY 卡数</div>
+      <div class="kpi-label">当前实际在用的卡总数</div>
+      <div class="kpi-note">利用率 ≥ 10% 判定 · LOCKED − BUSY = 闲置锁</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════ 数据流 ════════ -->
+<section class="section">
+  <h2 class="section-title">数据<span class="hl">架构</span></h2>
+  <p class="section-desc">双数据源融合，一分钟全貌</p>
+
+  <div class="flow">
+    <div class="flow-node">
+      <div class="fn-title">🔐 Lock Bot</div>
+      <div class="fn-detail">资源锁定状态<br>当前锁 + 历史占用</div>
+    </div>
+    <span class="flow-arrow">+</span>
+    <div class="flow-node">
+      <div class="fn-title">📡 Monquery 3.0</div>
+      <div class="fn-detail">XPU & 显存利用率<br>48 节点 × 17 指标</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node" style="border-color:#7c3aed;">
+      <div class="fn-title" style="color:#a78bfa;">适配 & 融合</div>
+      <div class="fn-detail">288 槽时间序列<br>逐卡判定 + 合并去重</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node" style="border-color:#7c3aed;background:rgba(124,58,237,.08);">
+      <div class="fn-title" style="color:#a78bfa;">📊 可视化仪表盘</div>
+      <div class="fn-detail">实时刷新 · 双视图<br>异常主动标记</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ Footer ════════ -->
+<footer class="footer">
+  <p>XPU 集群资源监控仪表盘 · 纯前端 + Node.js 代理 · 数据来源 Lock Bot & Monquery 3.0</p>
+  <p style="margin-top:4px;"><a href="index.html">进入仪表盘</a> · <a href="average.html">移动平均趋势</a></p>
+</footer>
+
+</body>
+</html>
