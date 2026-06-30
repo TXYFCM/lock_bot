@@ -119,7 +119,7 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 .win-btn.active { background: #e2e8f0; color: #1e293b; }
 .charts-row { display: flex; flex-direction: column; gap: 16px; }
 .chart-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
-.chart-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1e293b; }
+.chart-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1e293b; text-align: center; }
 .chart-legend { display: flex; align-items: center; gap: 16px; font-size: 11px; margin-bottom: 8px; color: #64748b; }
 .chart-legend .legend-item { display: flex; align-items: center; gap: 6px; }
 .chart-legend .legend-line-solid { width: 16px; height: 2px; border-radius: 1px; }
@@ -247,19 +247,11 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
     </div>
     <div class="charts-row" id="avg-charts-row">
       <div class="chart-panel">
-        <div class="chart-panel-title">XPU 利用率</div>
-        <div class="chart-legend">
-          <div class="legend-item"><span class="legend-line-solid" style="background:#7c3aed"></span><span>今日</span></div>
-          <div class="legend-item"><span class="legend-line-dash" style="background:repeating-linear-gradient(90deg, rgba(124,58,237,0.30) 0, rgba(124,58,237,0.30) 4px, transparent 4px, transparent 7px)"></span><span style="color:#94a3b8">昨日</span></div>
-        </div>
+        <div class="chart-panel-title">XPU移动利用率趋势</div>
         <div class="chart-wrap" id="avg-xpu-chart-wrap"><canvas id="avg-xpu-chart"></canvas></div>
       </div>
       <div class="chart-panel">
-        <div class="chart-panel-title">显存 利用率</div>
-        <div class="chart-legend">
-          <div class="legend-item"><span class="legend-line-solid" style="background:#ea580c"></span><span>今日</span></div>
-          <div class="legend-item"><span class="legend-line-dash" style="background:repeating-linear-gradient(90deg, rgba(234,88,12,0.30) 0, rgba(234,88,12,0.30) 4px, transparent 4px, transparent 7px)"></span><span style="color:#94a3b8">昨日</span></div>
-        </div>
+        <div class="chart-panel-title">显存移动利用率趋势</div>
         <div class="chart-wrap" id="avg-mem-chart-wrap"><canvas id="avg-mem-chart"></canvas></div>
       </div>
     </div>
@@ -1048,6 +1040,26 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
   }
   ctx.stroke();
   ctx.restore();
+
+  // ---- 图例（坐标轴区域左上角） ----
+  const lx = AVG_MARGIN.left + 8, ly = AVG_MARGIN.top + 6;
+  const items = [{ color, dash: false, label: '今日' }];
+  if (yestData) items.push({ color: ghostColor, dash: true, label: '昨日' });
+  const lw = items.length === 2 ? 90 : 50, lh = items.length === 2 ? 36 : 22;
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.fill();
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = .5;
+  ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.stroke();
+  items.forEach((it, i) => {
+    const iy = ly + 6 + i * 14;
+    ctx.strokeStyle = it.color; ctx.lineWidth = 2;
+    ctx.setLineDash(it.dash ? [4, 3] : []);
+    ctx.beginPath(); ctx.moveTo(lx + 6, iy + 4); ctx.lineTo(lx + 26, iy + 4); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#475569'; ctx.font = '10px -apple-system,"PingFang SC",sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(it.label, lx + 30, iy + 4);
+  });
 
   // Store metadata for hover
   const layers = [{ data: todayData, color, label: '今日' }];
