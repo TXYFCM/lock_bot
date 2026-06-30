@@ -149,8 +149,7 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 /* Badge: NODATA */
 .badge-NODATA { background: #f1f5f9; color: #94a3b8; }
 
-/* 异常标记：锁与显存不一致 */
-.badge-warn-anon { background: #fef3c7; color: #d97706; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
+/* 异常标记：僵尸锁 */
 .badge-warn-zombie { background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
 
 /* DEVICE 节点内联卡片 */
@@ -1311,29 +1310,24 @@ function renderList() {
       ? `<span class="util-value ${utilClass(node.currentMemUtil || 0, true)}">${(node.currentMemUtil || 0).toFixed(2)}%</span>`
       : `<span class="util-value nodata">--</span>`;
 
-    // 异常标记：显存与 Lock Bot 锁状态不一致
+    // 异常标记：僵尸锁检测
     let warnBadge = '';
-    if (hasData) {
-      const locked = !!node.hasActiveLock;
-      if ((node.status === 'BUSY' || node.status === 'PARTIAL') && !locked) {
-        warnBadge = '<span class="badge-warn-anon" title="显存占用中但无 Lock Bot 锁，疑似匿名占用">匿名占用</span>';
-      } else if (locked) {
-        // 检查最近 2h（24 个 5min 槽）是否持续空闲
-        const windowSlots = 24;
-        const endSlot = Math.max(0, nowIdx - 1);
-        const startSlot = Math.max(0, endSlot - windowSlots + 1);
-        let unused2h = true;
-        for (let s = startSlot; s <= endSlot; s++) {
-          const avgU = node.avgUtil[s] || 0;
-          const avgM = node.avgMemUtil[s] || 0;
-          if (avgU >= 10 || avgM >= 10) {
-            unused2h = false;
-            break;
-          }
+    if (hasData && node.hasActiveLock) {
+      // 检查最近 2h（24 个 5min 槽）是否持续空闲
+      const windowSlots = 24;
+      const endSlot = Math.max(0, nowIdx - 1);
+      const startSlot = Math.max(0, endSlot - windowSlots + 1);
+      let unused2h = true;
+      for (let s = startSlot; s <= endSlot; s++) {
+        const avgU = node.avgUtil[s] || 0;
+        const avgM = node.avgMemUtil[s] || 0;
+        if (avgU >= 10 || avgM >= 10) {
+          unused2h = false;
+          break;
         }
-        if (unused2h) {
-          warnBadge = '<span class="badge-warn-zombie" title="该节点已锁定但近2h内XPU与显存利用率均低于10%">⚠已锁定≥2h未使用</span>';
-        }
+      }
+      if (unused2h) {
+        warnBadge = '<span class="badge-warn-zombie" title="该节点已锁定但近2h内XPU与显存利用率均低于10%">⚠已锁定≥2h未使用</span>';
       }
     }
 
