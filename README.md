@@ -10,7 +10,7 @@
 cd /home/users/v_qiujie04/monitor
 node proxy.js                     # 启动本地代理（端口 8900）
 # 浏览器打开 http://localhost:8900/index.html
-# 价值展示页 http://10.206.192.17:8900/value.html
+# 下一版全部 / 团队价值低保真原型 http://10.206.192.17:8900/value.html
 ```
 
 页面使用 **Lock Bot 平台账号密码** 登录。Token 自动存入 `localStorage`，4 小时有效期内刷新无需重登。
@@ -76,7 +76,7 @@ node proxy.js                     # 启动本地代理（端口 8900）
 | `api.js` | API 调用层：Lock Bot fetch 封装 + Monquery 整机优先 / 卡级批次 / 完整兼容查询 |
 | `adapter.js` | 数据适配层：原始 API 响应 → `NodeData[]`、增量 Monquery 合并、部分数据状态 flags |
 | `average.html` | 全部视图的移动平均利用率页面（复用 `api.js` / `adapter.js`） |
-| `value.html` | 价值展示页（面向管理层，说明监控数据如何驱动决策） |
+| `value.html` | 下一版全部 / 团队价值低保真原型（说明集群投入效果和团队资源指标的管理价值，不代表当前功能可用） |
 | `proxy.js` | 本地代理（Node.js 原生 `http` 模块，约 140 行） |
 | `config.json` | 部署配置（代理端口 + 后端地址） |
 | `deploy.sh` | 一键部署脚本 |

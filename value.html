@@ -3,255 +3,623 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>XPU 集群资源监控 — 价值说明</title>
+<title>XPU 资源监控下一版原型 - 全部 / 团队价值视图</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
-
-/* ── Hero ── */
-.hero { text-align: center; padding: 80px 20px 60px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); position: relative; overflow: hidden; }
-.hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,.12) 0%, transparent 60%); }
-.hero h1 { font-size: 42px; font-weight: 800; letter-spacing: -.5px; position: relative; }
-.hero h1 .accent { color: #a78bfa; }
-.hero .subtitle { font-size: 18px; color: #94a3b8; margin-top: 16px; max-width: 640px; margin-left: auto; margin-right: auto; position: relative; }
-.hero .meta { display: flex; gap: 24px; justify-content: center; margin-top: 28px; position: relative; }
-.hero .meta-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #64748b; }
-.hero .meta-item .num { font-size: 26px; font-weight: 700; color: #cbd5e1; font-family: "SF Mono","JetBrains Mono",monospace; }
-
-/* ── Section ── */
-.section { max-width: 1080px; margin: 0 auto; padding: 64px 20px; }
-.section-title { font-size: 26px; font-weight: 700; text-align: center; margin-bottom: 8px; }
-.section-title .hl { color: #a78bfa; }
-.section-desc { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 40px; }
-
-/* ── Value Cards ── */
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 768px) { .cards { grid-template-columns: 1fr; } }
-.card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px 24px; transition: border-color .2s, transform .2s; }
-.card:hover { border-color: #7c3aed; transform: translateY(-2px); }
-.card .icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
-.card .icon.purple { background: rgba(124,58,237,.15); color: #a78bfa; }
-.card .icon.green  { background: rgba(16,185,129,.15); color: #34d399; }
-.card .icon.amber  { background: rgba(245,158,11,.15); color: #fbbf24; }
-.card .icon.blue   { background: rgba(14,165,233,.15); color: #38bdf8; }
-.card .icon.red    { background: rgba(239,68,68,.15); color: #f87171; }
-.card .icon.teal   { background: rgba(20,184,166,.15); color: #2dd4bf; }
-.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
-.card p { font-size: 13px; color: #94a3b8; }
-
-/* ── Scenarios ── */
-.scenarios { display: flex; flex-direction: column; gap: 16px; }
-.scenario { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; display: flex; gap: 20px; align-items: flex-start; }
-.scenario .sc-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-.scenario .sc-icon.up   { background: rgba(239,68,68,.12); color: #f87171; }
-.scenario .sc-icon.down { background: rgba(16,185,129,.12); color: #34d399; }
-.scenario .sc-icon.opt  { background: rgba(245,158,11,.12); color: #fbbf24; }
-.scenario .sc-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-.scenario .sc-body .sc-trigger { font-size: 12px; color: #a78bfa; font-weight: 600; margin-bottom: 6px; font-family: "SF Mono","JetBrains Mono",monospace; }
-.scenario .sc-body p { font-size: 13px; color: #94a3b8; }
-.scenario .sc-body .sc-action { margin-top: 8px; font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
-.scenario .sc-body .sc-action::before { content: '→'; color: #7c3aed; font-weight: 700; }
-
-/* ── KPI Table ── */
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-@media (max-width: 768px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-.kpi-item { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px 18px; text-align: center; }
-.kpi-item .kpi-val { font-size: 28px; font-weight: 700; font-family: "SF Mono","JetBrains Mono",monospace; }
-.kpi-item .kpi-val.purple { color: #a78bfa; }
-.kpi-item .kpi-val.green  { color: #34d399; }
-.kpi-item .kpi-val.amber  { color: #fbbf24; }
-.kpi-item .kpi-val.blue   { color: #38bdf8; }
-.kpi-item .kpi-label { font-size: 12px; color: #64748b; margin-top: 4px; }
-.kpi-item .kpi-note { font-size: 11px; color: #475569; margin-top: 2px; }
-
-/* ── Data Flow ── */
-.flow { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 20px 0; }
-.flow-node { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 20px; text-align: center; }
-.flow-node .fn-title { font-size: 13px; font-weight: 600; }
-.flow-node .fn-detail { font-size: 11px; color: #64748b; margin-top: 2px; }
-.flow-arrow { color: #7c3aed; font-size: 22px; padding: 0 12px; font-weight: 700; }
-
-/* ── Footer ── */
-.footer { text-align: center; padding: 40px 20px; color: #475569; font-size: 12px; border-top: 1px solid #1e293b; }
-.footer a { color: #7c3aed; text-decoration: none; }
-.footer a:hover { color: #a78bfa; }
-
-/* ── Nav ── */
-.nav { display: flex; justify-content: center; gap: 32px; padding: 16px 20px; background: rgba(15,23,42,.8); backdrop-filter: blur(8px); border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 10; }
-.nav a { color: #94a3b8; text-decoration: none; font-size: 13px; transition: color .15s; }
-.nav a:hover { color: #e2e8f0; }
-
-/* Divider */
-.divider { border: none; border-top: 1px solid #1e293b; max-width: 1080px; margin: 0 auto; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #1f2933;
+  background: #f4f5f7;
+  line-height: 1.6;
+}
+a { color: inherit; }
+.prototype-shell { max-width: 1240px; margin: 0 auto; padding: 24px; }
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.kicker { font-size: 12px; color: #6b7280; letter-spacing: .08em; text-transform: uppercase; }
+h1 { margin: 4px 0 8px; font-size: 30px; line-height: 1.2; }
+.lede { margin: 0; max-width: 880px; color: #4b5563; font-size: 15px; }
+.return-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #9ca3af;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.notice {
+  border: 1px dashed #6b7280;
+  background: #fff;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  color: #374151;
+  font-size: 13px;
+}
+.frame {
+  background: #fff;
+  border: 2px solid #111827;
+  box-shadow: 6px 6px 0 #d1d5db;
+}
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid #111827;
+  padding: 10px 12px;
+  background: #e5e7eb;
+}
+.dots { display: flex; gap: 5px; }
+.dot { width: 9px; height: 9px; border: 1px solid #111827; border-radius: 50%; background: #fff; }
+.url-box { flex: 1; border: 1px solid #9ca3af; background: #f9fafb; padding: 4px 10px; color: #6b7280; font: 12px "SF Mono", Consolas, monospace; }
+.app-header { padding: 18px 20px 0; border-bottom: 1px solid #9ca3af; }
+.app-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 14px; }
+.app-title h2 { margin: 0; font-size: 20px; }
+.app-title span { color: #6b7280; font-size: 13px; }
+.tabs { display: flex; gap: 8px; }
+.tab {
+  min-width: 96px;
+  padding: 8px 16px;
+  border: 1px solid #9ca3af;
+  border-bottom: none;
+  background: #f9fafb;
+  text-align: center;
+  font-size: 14px;
+  color: #4b5563;
+}
+.tab.active { background: #fff; color: #111827; font-weight: 700; border-color: #111827; position: relative; top: 1px; }
+.content { padding: 20px; }
+.section { margin-bottom: 30px; }
+.section:last-child { margin-bottom: 0; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.section h3 { margin: 0; font-size: 18px; }
+.section-note { color: #6b7280; font-size: 13px; }
+.background-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+.panel {
+  border: 1px solid #9ca3af;
+  background: #fff;
+  padding: 14px;
+}
+.panel.dashed { border-style: dashed; background: #fafafa; }
+.panel-title { margin: 0 0 8px; font-weight: 700; font-size: 14px; }
+.text-lines { display: grid; gap: 8px; }
+.text-line { height: 12px; background: #e5e7eb; border: 1px solid #d1d5db; }
+.text-line.short { width: 68%; }
+.text-line.mid { width: 82%; }
+.problem-list { margin: 0; padding-left: 18px; color: #374151; font-size: 14px; }
+.problem-list li { margin: 6px 0; }
+.view-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid #111827;
+  background: #f9fafb;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.control-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.control-card { border: 1px dashed #9ca3af; background: #fafafa; padding: 10px; min-height: 70px; }
+.control-label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.control-value { border: 1px solid #d1d5db; background: #fff; padding: 6px 8px; font: 12px "SF Mono", Consolas, monospace; color: #374151; }
+.metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.metric-card { border: 1px solid #111827; background: #fff; padding: 14px; min-height: 190px; display: flex; flex-direction: column; gap: 10px; }
+.metric-card.compact { min-height: 166px; }
+.metric-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.metric-name { font-weight: 700; font-size: 15px; }
+.badge { border: 1px solid #9ca3af; padding: 2px 6px; font-size: 11px; color: #4b5563; background: #f9fafb; white-space: nowrap; }
+.metric-value { font-size: 27px; line-height: 1; font-family: "SF Mono", Consolas, monospace; font-weight: 700; }
+.metric-sub { color: #6b7280; font-size: 12px; }
+.metric-rule { border-top: 1px dashed #9ca3af; padding-top: 8px; font-size: 12px; color: #4b5563; }
+.manager-use { margin-top: auto; border-left: 4px solid #111827; padding-left: 8px; font-size: 13px; color: #111827; }
+.prototype-main { display: grid; grid-template-columns: 280px 1fr; gap: 14px; }
+.side-panel { border: 1px solid #9ca3af; padding: 12px; background: #fafafa; }
+.filter-block { border: 1px dashed #9ca3af; background: #fff; padding: 10px; margin-bottom: 10px; }
+.filter-label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.filter-row { height: 26px; border: 1px solid #d1d5db; background: #f9fafb; margin-bottom: 6px; }
+.rank-row { display: grid; grid-template-columns: 1fr 44px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+.rank-row:last-child { border-bottom: none; }
+.rank-score { text-align: right; font-family: "SF Mono", Consolas, monospace; }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.chart-grid.three { grid-template-columns: repeat(3, 1fr); }
+.chart-card { border: 1px solid #111827; padding: 14px; background: #fff; }
+.chart-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 700; font-size: 14px; }
+.chart-title span { color: #6b7280; font-weight: 400; font-size: 12px; }
+.chart-box {
+  height: 190px;
+  position: relative;
+  border: 1px dashed #6b7280;
+  background:
+    linear-gradient(to right, transparent 0, transparent calc(25% - 1px), #e5e7eb 25%, transparent calc(25% + 1px), transparent calc(50% - 1px), #e5e7eb 50%, transparent calc(50% + 1px), transparent calc(75% - 1px), #e5e7eb 75%, transparent calc(75% + 1px)),
+    linear-gradient(to bottom, transparent 0, transparent calc(33% - 1px), #e5e7eb 33%, transparent calc(33% + 1px), transparent calc(66% - 1px), #e5e7eb 66%, transparent calc(66% + 1px));
+}
+.line { position: absolute; left: 24px; right: 24px; height: 0; border-top: 3px solid #111827; transform-origin: left center; }
+.line.one { top: 112px; transform: rotate(-8deg); }
+.line.two { top: 78px; border-top-style: dashed; transform: rotate(6deg); }
+.line.three { top: 136px; transform: rotate(-16deg); }
+.line.four { top: 96px; border-top: 2px dotted #111827; transform: rotate(-2deg); }
+.peak-note { position: absolute; right: 16px; top: 22px; border: 1px solid #111827; background: #fff; padding: 3px 6px; font-size: 11px; font-family: "SF Mono", Consolas, monospace; }
+.axis-labels { display: flex; justify-content: space-between; margin-top: 6px; color: #6b7280; font-size: 11px; }
+.chart-use { margin-top: 10px; border-left: 4px solid #111827; padding-left: 8px; color: #111827; font-size: 13px; }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.compare-card { border: 1px dashed #6b7280; background: #fafafa; padding: 12px; }
+.compare-card h4 { margin: 0 0 8px; font-size: 14px; }
+.compare-card p { margin: 0; color: #374151; font-size: 13px; }
+.compare-number { font-family: "SF Mono", Consolas, monospace; font-size: 22px; font-weight: 700; margin: 4px 0; }
+.table-wrap { border: 1px solid #111827; overflow-x: auto; background: #fff; }
+table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: 13px; }
+th, td { border-bottom: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+th { background: #e5e7eb; font-weight: 700; color: #111827; }
+td.mono { font-family: "SF Mono", Consolas, monospace; }
+.tip { border: 1px solid #9ca3af; background: #fafafa; padding: 5px 7px; display: inline-block; color: #374151; }
+.decision-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.decision-card { border: 1px dashed #6b7280; background: #fafafa; padding: 12px; }
+.decision-card h4 { margin: 0 0 8px; font-size: 14px; }
+.decision-card p { margin: 0; font-size: 13px; color: #374151; }
+.assumption-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.assumption { border: 1px solid #9ca3af; background: #fff; padding: 12px; font-size: 13px; }
+.assumption h4 { margin: 0 0 8px; font-size: 14px; }
+.assumption ul { margin: 0; padding-left: 18px; }
+.assumption li { margin: 5px 0; }
+.footer { margin-top: 18px; color: #6b7280; font-size: 12px; text-align: center; }
+@media (max-width: 1100px) {
+  .chart-grid.three { grid-template-columns: 1fr; }
+}
+@media (max-width: 980px) {
+  .background-grid, .prototype-main, .chart-grid, .assumption-grid, .compare-grid { grid-template-columns: 1fr; }
+  .metric-grid, .control-grid { grid-template-columns: repeat(2, 1fr); }
+  .decision-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .prototype-shell { padding: 14px; }
+  .topbar, .app-title, .section-head { flex-direction: column; align-items: flex-start; }
+  .tabs { width: 100%; }
+  .tab { min-width: 0; flex: 1; padding: 8px 6px; }
+  .metric-grid, .decision-grid, .control-grid { grid-template-columns: 1fr; }
+  h1 { font-size: 24px; }
+}
 </style>
 </head>
 <body>
-
-<!-- ════════ Nav ════════ -->
-<nav class="nav">
-  <a href="index.html">← 返回仪表盘</a>
-  <a href="#value">核心价值</a>
-  <a href="#decision">决策场景</a>
-  <a href="#kpi">关键指标</a>
-</nav>
-
-<!-- ════════ Hero ════════ -->
-<section class="hero">
-  <h1>开发机集群 <span class="accent">XPU 资源监控</span></h1>
-  <p class="subtitle">实时透视 48 节点 × 8 卡 GPU 集群的使用全貌，用数据驱动资源决策，让每一张 XPU 卡都发挥价值</p>
-  <div class="meta">
-    <div class="meta-item"><span class="num">48</span> 监控节点</div>
-    <div class="meta-item"><span class="num">384</span> XPU 卡</div>
-    <div class="meta-item"><span class="num">288</span> 槽/天 (5min粒度)</div>
-    <div class="meta-item"><span class="num">2</span> 数据源融合</div>
-  </div>
-</section>
-
-<!-- ════════ 核心价值 ════════ -->
-<section class="section" id="value">
-  <h2 class="section-title">核心<span class="hl">价值</span></h2>
-  <p class="section-desc">从"看不见"到"一目了然"——监控数据如何转化为管理决策依据</p>
-
-  <div class="cards">
-    <div class="card">
-      <div class="icon purple">📊</div>
-      <h3>资源利用率透明化</h3>
-      <p>实时掌握 384 张 XPU 卡的 XPU 使用率与显存占用率，消灭资源盲区。288 槽全天候追踪，每 5 分钟粒度，谁在用、用多少，一目了然。</p>
+<div class="prototype-shell">
+  <header class="topbar">
+    <div>
+      <div class="kicker">Next version wireframe</div>
+      <h1>XPU 资源监控下一版原型：全部 / 团队价值视图</h1>
+      <p class="lede">这是一张低保真原型图，用来评审下一版网站的信息结构。页面中的数值均为示意，重点说明「全部」如何判断资源投入是否有效，「团队」如何判断资源申请、使用质量和分配问题。</p>
     </div>
-    <div class="card">
-      <div class="icon red">⚠️</div>
-      <h3>僵尸锁自动识别</h3>
-      <p>2 小时滑动窗口持续扫描：有 Lock Bot 锁但 XPU 与显存利用率双双低于 10% → 标记为僵尸锁。精准识别"锁而不用"的浪费，为资源回收提供事实依据。</p>
-    </div>
-    <div class="card">
-      <div class="icon green">📈</div>
-      <h3>容量规划数据支撑</h3>
-      <p>移动平均趋势图（5m/10m/30m/1h）+ 昨日对比曲线，直观呈现利用率走势。采购新卡还是回收闲置？数据说了算，告别拍脑袋决策。</p>
-    </div>
-    <div class="card">
-      <div class="icon blue">🔒</div>
-      <h3>资源占用可追溯</h3>
-      <p>Lock Bot 锁记录 + 当天历史占用完整留存，谁在什么时间锁了哪张卡、锁了多久——全程可查。防止资源圈占，支撑公平调度。</p>
-    </div>
-    <div class="card">
-      <div class="icon amber">⚡</div>
-      <h3>运营效率提升</h3>
-      <p>60 秒自动刷新 + 双数据源融合（Lock Bot 占用 + Monquery 利用率），替代人工逐节点巡检。异常状态（僵尸锁）主动标记，问题发现前置到影响业务之前。</p>
-    </div>
-    <div class="card">
-      <div class="icon teal">💰</div>
-      <h3>硬件成本优化</h3>
-      <p>识别长期低利用率节点 → 评估是否释放或重新分配。单张 XPU 卡成本可观，提升 10% 利用率即相当于节省数十万硬件投入，ROI 清晰可量化。</p>
-    </div>
-  </div>
-</section>
+    <a class="return-link" href="index.html">返回当前仪表盘</a>
+  </header>
 
-<hr class="divider">
+  <div class="notice">原型边界：当前页面只表达下一版产品方案，不接入 API，不代表日期对比、投入事件标记或团队归因已成为当前可用能力。</div>
 
-<!-- ════════ 决策场景 ════════ -->
-<section class="section" id="decision">
-  <h2 class="section-title">数据 → <span class="hl">决策</span></h2>
-  <p class="section-desc">监控指标如何直接指导管理动作——三个典型场景</p>
+  <main class="frame" aria-label="下一版网站原型">
+    <div class="browser-bar">
+      <div class="dots" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="url-box">/index.html?view=all-team-prototype</div>
+    </div>
 
-  <div class="scenarios">
-    <div class="scenario">
-      <div class="sc-icon up">🔼</div>
-      <div class="sc-body">
-        <h3>场景一：扩容决策</h3>
-        <div class="sc-trigger">触发信号：XPU 平均利用率连续多日 > 50%</div>
-        <p>当 average 视图显示集群 XPU 利用率持续处于高位（紫色曲线长期 > 50%），且 FREE 节点占比持续走低，说明现有资源已接近瓶颈。Leader 可据此数据向上申请新增节点预算，有据可依。</p>
-        <div class="sc-action">数据来源：average 视图 · XPU 移动平均曲线 · FREE 节点占比趋势</div>
+    <div class="app-header">
+      <div class="app-title">
+        <h2>开发机资源运营看板</h2>
+        <span>按集群、个人、团队三个层级看投入效果、协作细节和资源归因</span>
       </div>
+      <nav class="tabs" aria-label="原型视图切换">
+        <div class="tab active">全部</div>
+        <div class="tab">个人</div>
+        <div class="tab">团队</div>
+      </nav>
     </div>
 
-    <div class="scenario">
-      <div class="sc-icon down">🔽</div>
-      <div class="sc-body">
-        <h3>场景二：资源回收</h3>
-        <div class="sc-trigger">触发信号：节点 LOCKED 但利用率 < 10% 持续 ≥ 2 小时（僵尸锁）</div>
-        <p>节点列表中红色"⚠已锁定≥2h未使用"标记出现时，说明该节点被 Lock Bot 锁定但实际未使用。管理者可直接联系持锁人确认是否仍需占用，释放后可供其他团队使用，避免 GPU 卡空转浪费。</p>
-        <div class="sc-action">数据来源：个人视图 · 僵尸锁 badge · 占用红条 hover 查看持锁人</div>
-      </div>
-    </div>
+    <div class="content">
+      <section class="section" id="background">
+        <div class="section-head">
+          <h3>背景</h3>
+          <div class="section-note">先看整体投入效果，再看团队归因和个人协调</div>
+        </div>
+        <div class="background-grid">
+          <div class="panel">
+            <p class="panel-title">为什么「全部」和「团队」都要做原型</p>
+            <ul class="problem-list">
+              <li>老板关心全局投入是否有效：新增共享存储、优化镜像拉取后，集群 XPU 和显存利用率有没有明显变化。</li>
+              <li>资源协调不能只看 lock 数量，还要看被锁定后的真实 XPU 和显存利用率。</li>
+              <li>团队视图用于统计各团队的申请、锁定、使用质量和高峰压力。</li>
+              <li>个人视图用于研发之间协商：A lock 了但长时间不用，B 可以根据持锁人和节点细节联系 A。</li>
+            </ul>
+          </div>
+          <div class="panel dashed" aria-label="背景草图占位">
+            <p class="panel-title">原型草图：三层视角</p>
+            <div class="text-lines" aria-hidden="true">
+              <div class="text-line"></div>
+              <div class="text-line mid"></div>
+              <div class="text-line short"></div>
+              <div class="text-line"></div>
+              <div class="text-line mid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <div class="scenario">
-      <div class="sc-icon opt">⚙️</div>
-      <div class="sc-body">
-        <h3>场景三：调度策略优化</h3>
-        <div class="sc-trigger">触发信号：PARTIAL 状态节点占比持续偏高</div>
-        <p>PARTIAL 节点 = 8 卡中仅部分被占用（1~7 卡 BUSY）。若此类节点占比过高，说明整机锁（NODE 模式）造成大量碎片化浪费。Leader 可推动切换为单卡锁（DEVICE 模式），将空闲卡分配给其他任务，提升整体利用率。</p>
-        <div class="sc-action">数据来源：个人视图 · PARTIAL badge 统计 · 展开查看逐卡详情</div>
-      </div>
-    </div>
-  </div>
-</section>
+      <section class="section" id="all-summary">
+        <div class="view-label">全部视图原型</div>
+        <div class="section-head">
+          <h3>集群投入效果评估</h3>
+          <div class="section-note">看所有开发机的 XPU / 显存平均利用率和峰值变化</div>
+        </div>
 
-<hr class="divider">
+        <div class="control-grid" aria-label="全部视图筛选控件占位">
+          <div class="control-card">
+            <div class="control-label">统计日期</div>
+            <div class="control-value">2026-07-01</div>
+          </div>
+          <div class="control-card">
+            <div class="control-label">对比周期</div>
+            <div class="control-value">投入前 7 天 / 投入后 7 天</div>
+          </div>
+          <div class="control-card">
+            <div class="control-label">投入事件标记</div>
+            <div class="control-value">共享存储上线</div>
+          </div>
+          <div class="control-card">
+            <div class="control-label">移动平均窗口</div>
+            <div class="control-value">5m / 10m / 30m / 1h</div>
+          </div>
+        </div>
 
-<!-- ════════ KPI ════════ -->
-<section class="section" id="kpi">
-  <h2 class="section-title">关键<span class="hl">指标</span></h2>
-  <p class="section-desc">仪表盘追踪的核心 KPI 及管理意义</p>
+        <div class="metric-grid">
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">集群 XPU 平均利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">42%</div>
+            <div class="metric-rule">口径：全部有 Monquery 数据的开发机，按时间槽求平均。</div>
+            <div class="manager-use">老板看它：判断整体计算资源是否真的被任务吃满。</div>
+          </article>
 
-  <div class="kpi-grid">
-    <div class="kpi-item">
-      <div class="kpi-val purple">XPU 平均利用率</div>
-      <div class="kpi-label">衡量 GPU 计算资源使用效率</div>
-      <div class="kpi-note">10:00→当前 · 仅 node 节点 · 等权平均</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-val green">显存平均利用率</div>
-      <div class="kpi-label">衡量 GPU 显存资源使用效率</div>
-      <div class="kpi-note">8 卡逐槽取均值 · 再跨节点平均</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-val amber">LOCKED 卡数</div>
-      <div class="kpi-label">当前被 Lock Bot 锁定的卡总数</div>
-      <div class="kpi-note">对比 BUSY 卡数 → 发现"锁而不用"</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-val blue">BUSY 卡数</div>
-      <div class="kpi-label">当前实际在用的卡总数</div>
-      <div class="kpi-note">利用率 ≥ 10% 判定 · LOCKED − BUSY = 闲置锁</div>
-    </div>
-  </div>
-</section>
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">集群显存平均利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">35%</div>
+            <div class="metric-rule">口径：全部开发机显存占用按时间槽求平均。</div>
+            <div class="manager-use">老板看它：判断瓶颈是否在显存资源，而不是只看 XPU 计算。</div>
+          </article>
 
-<hr class="divider">
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">今日 XPU 峰值利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">68%</div>
+            <div class="metric-rule">口径：当天 XPU 平均利用率曲线最高点。</div>
+            <div class="manager-use">老板看它：判断高峰期是否接近容量瓶颈。</div>
+          </article>
 
-<!-- ════════ 数据流 ════════ -->
-<section class="section">
-  <h2 class="section-title">数据<span class="hl">架构</span></h2>
-  <p class="section-desc">双数据源融合，一分钟全貌</p>
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">今日显存峰值利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">61%</div>
+            <div class="metric-rule">口径：当天显存平均利用率曲线最高点。</div>
+            <div class="manager-use">老板看它：判断显存高峰是否限制任务排布。</div>
+          </article>
 
-  <div class="flow">
-    <div class="flow-node">
-      <div class="fn-title">🔐 Lock Bot</div>
-      <div class="fn-detail">资源锁定状态<br>当前锁 + 历史占用</div>
-    </div>
-    <span class="flow-arrow">+</span>
-    <div class="flow-node">
-      <div class="fn-title">📡 Monquery 3.0</div>
-      <div class="fn-detail">XPU & 显存利用率<br>48 节点 × 17 指标</div>
-    </div>
-    <span class="flow-arrow">→</span>
-    <div class="flow-node" style="border-color:#7c3aed;">
-      <div class="fn-title" style="color:#a78bfa;">适配 & 融合</div>
-      <div class="fn-detail">288 槽时间序列<br>逐卡判定 + 合并去重</div>
-    </div>
-    <span class="flow-arrow">→</span>
-    <div class="flow-node" style="border-color:#7c3aed;background:rgba(124,58,237,.08);">
-      <div class="fn-title" style="color:#a78bfa;">📊 可视化仪表盘</div>
-      <div class="fn-detail">实时刷新 · 双视图<br>异常主动标记</div>
-    </div>
-  </div>
-</section>
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">投入前后变化</div><div class="badge">示意</div></div>
+            <div class="metric-value">+12.4%</div>
+            <div class="metric-rule">口径：选定投入事件前后两个周期的均值/峰值差异。</div>
+            <div class="manager-use">老板看它：判断某项资源投入是否带来明显利用率提升。</div>
+          </article>
 
-<!-- ════════ Footer ════════ -->
-<footer class="footer">
-  <p>XPU 集群资源监控仪表盘 · 纯前端 + Node.js 代理 · 数据来源 Lock Bot & Monquery 3.0</p>
-  <p style="margin-top:4px;"><a href="index.html">进入仪表盘</a> · <a href="average.html">移动平均趋势</a></p>
-</footer>
+          <article class="metric-card compact">
+            <div class="metric-top"><div class="metric-name">结论占位</div><div class="badge">示意</div></div>
+            <div class="metric-value">显著提升</div>
+            <div class="metric-rule">口径：由均值变化、峰值变化和波动情况共同形成判断。</div>
+            <div class="manager-use">老板看它：把曲线转成管理层可直接讨论的判断。</div>
+          </article>
+        </div>
+      </section>
 
+      <section class="section" id="all-charts">
+        <div class="section-head">
+          <h3>全部视图趋势图</h3>
+          <div class="section-note">用日期筛选和投入事件对比看全局效果</div>
+        </div>
+        <div class="chart-grid three">
+          <article class="chart-card">
+            <div class="chart-title">全集群 XPU 平均利用率趋势 <span>日期筛选，示意</span></div>
+            <div class="chart-box" aria-label="全集群 XPU 平均利用率趋势占位图">
+              <div class="line one"></div>
+              <div class="line four"></div>
+              <div class="peak-note">峰值 68% 15:35</div>
+            </div>
+            <div class="axis-labels"><span>10:00</span><span>12:00</span><span>15:00</span><span>当前</span></div>
+            <div class="chart-use">老板看它：看投入前后计算资源利用率是否变好，判断优化是否真的减少了等待和空转。</div>
+          </article>
+
+          <article class="chart-card">
+            <div class="chart-title">全集群显存平均利用率趋势 <span>日期筛选，示意</span></div>
+            <div class="chart-box" aria-label="全集群显存平均利用率趋势占位图">
+              <div class="line two"></div>
+              <div class="line four"></div>
+              <div class="peak-note">峰值 61% 16:10</div>
+            </div>
+            <div class="axis-labels"><span>10:00</span><span>12:00</span><span>15:00</span><span>当前</span></div>
+            <div class="chart-use">老板看它：确认优化是否只提升了计算利用率，还是也改善了显存占用效率。</div>
+          </article>
+
+          <article class="chart-card">
+            <div class="chart-title">投入前后对比 <span>共享存储上线，示意</span></div>
+            <div class="chart-box" aria-label="投入前后对比占位图">
+              <div class="line three"></div>
+              <div class="line one"></div>
+              <div class="peak-note">后 7 天 +12.4%</div>
+            </div>
+            <div class="axis-labels"><span>投入前</span><span>上线日</span><span>投入后</span><span>结论</span></div>
+            <div class="chart-use">老板看它：如果共享存储上线后 XPU 利用率明显提升，说明镜像拉取瓶颈被缓解，投入能被量化说明。</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="investment-compare">
+        <div class="section-head">
+          <h3>投入效果判断占位</h3>
+          <div class="section-note">把曲线转成管理层讨论语言</div>
+        </div>
+        <div class="compare-grid">
+          <article class="compare-card">
+            <h4>投入前</h4>
+            <div class="compare-number">XPU 均值 31%</div>
+            <p>镜像拉取慢时，机器可能已被 lock，但任务等待时间长，XPU 曲线抬不起来。</p>
+          </article>
+          <article class="compare-card">
+            <h4>投入后</h4>
+            <div class="compare-number">XPU 均值 43%</div>
+            <p>共享存储上线后，镜像拉取变快，任务更快进入计算阶段，曲线应更早、更稳定抬升。</p>
+          </article>
+          <article class="compare-card">
+            <h4>老板判断</h4>
+            <div class="compare-number">显著提升</div>
+            <p>如果均值和峰值都提高，说明投入对整体资源利用率有价值；如果变化很小，则需要继续找瓶颈。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="team-summary">
+        <div class="view-label">团队视图原型</div>
+        <div class="section-head">
+          <h3>团队资源归因和分配</h3>
+          <div class="section-note">全部看整体投入效果，团队看哪些团队申请多、用得好或需要协调</div>
+        </div>
+        <div class="metric-grid">
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">今日锁定机器数</div><div class="badge">示意</div></div>
+            <div class="metric-value">18 台</div>
+            <div class="metric-sub">辅助：锁定 96 卡，含整机锁与单卡锁</div>
+            <div class="metric-rule">口径：当天被 Lock Bot 锁定过的去重机器数。</div>
+            <div class="manager-use">老板看它：判断团队今天申请资源的规模，以及占用是整机为主还是部分卡为主。</div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">锁定机器 XPU 利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">46%</div>
+            <div class="metric-sub">辅助：锁定卡 XPU 利用率 52%</div>
+            <div class="metric-rule">口径：只统计被锁定机器在锁定时段内的 XPU 平均利用率。</div>
+            <div class="manager-use">老板看它：判断申请到的机器和卡是否真正产生计算负载。</div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">锁定机器显存利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">38%</div>
+            <div class="metric-sub">辅助：锁定卡显存利用率 41%</div>
+            <div class="metric-rule">口径：只统计被锁定机器在锁定时段内的显存平均占用率。</div>
+            <div class="manager-use">老板看它：识别显存型任务，也发现锁了机器但显存几乎不用的情况。</div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">今日峰值利用率</div><div class="badge">示意</div></div>
+            <div class="metric-value">73%</div>
+            <div class="metric-sub">峰值时段：15:30 至 15:35</div>
+            <div class="metric-rule">口径：当天时间槽内，锁定机器平均利用率的最高点。</div>
+            <div class="manager-use">老板看它：判断团队高峰时段是否接近容量瓶颈。</div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">本周日均锁定机器数</div><div class="badge">示意</div></div>
+            <div class="metric-value">15 台</div>
+            <div class="metric-sub">辅助：周均锁定 82 卡</div>
+            <div class="metric-rule">口径：最近 7 天每日锁定机器数的平均值。</div>
+            <div class="manager-use">老板看它：判断团队资源需求基线，避免被单日波动误导。</div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-top"><div class="metric-name">今日峰值锁定机器数</div><div class="badge">示意</div></div>
+            <div class="metric-value">24 台</div>
+            <div class="metric-sub">辅助：峰值锁定 141 卡</div>
+            <div class="metric-rule">口径：当天同一时间并发锁定机器数的最高值。</div>
+            <div class="manager-use">老板看它：判断排队、冲突和扩容压力。</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="team-body">
+        <div class="section-head">
+          <h3>团队视图主体</h3>
+          <div class="section-note">左侧选团队，右侧看该团队的申请量、使用质量和高峰压力</div>
+        </div>
+        <div class="prototype-main">
+          <aside class="side-panel">
+            <div class="filter-block">
+              <div class="filter-label">筛选占位</div>
+              <div class="filter-row"></div>
+              <div class="filter-row"></div>
+            </div>
+            <p class="panel-title">团队排行占位</p>
+            <div class="rank-row"><span>团队 A</span><span class="rank-score">18 台</span></div>
+            <div class="rank-row"><span>团队 B</span><span class="rank-score">14 台</span></div>
+            <div class="rank-row"><span>团队 C</span><span class="rank-score">9 台</span></div>
+            <div class="rank-row"><span>团队 D</span><span class="rank-score">6 台</span></div>
+          </aside>
+
+          <div>
+            <div class="chart-grid">
+              <article class="chart-card">
+                <div class="chart-title">锁定机器 XPU / 显存利用率趋势 <span>今日，示意</span></div>
+                <div class="chart-box" aria-label="锁定机器 XPU 和显存利用率趋势占位图">
+                  <div class="line one"></div>
+                  <div class="line two"></div>
+                </div>
+                <div class="axis-labels"><span>10:00</span><span>12:00</span><span>15:00</span><span>当前</span></div>
+                <div class="chart-use">老板看它：判断资源锁住以后是否真的在用，以及低利用是否集中在某些时段。</div>
+              </article>
+
+              <article class="chart-card">
+                <div class="chart-title">日峰值利用率趋势 <span>最近 7 天，示意</span></div>
+                <div class="chart-box" aria-label="日峰值利用率趋势占位图">
+                  <div class="line three"></div>
+                </div>
+                <div class="axis-labels"><span>D-6</span><span>D-4</span><span>D-2</span><span>今天</span></div>
+                <div class="chart-use">老板看它：区分偶发高峰和持续容量不足，支撑扩容或调度判断。</div>
+              </article>
+
+              <article class="chart-card">
+                <div class="chart-title">每日锁定机器数 / 峰值锁定机器数 <span>最近 7 天，示意</span></div>
+                <div class="chart-box" aria-label="每日锁定机器数和峰值锁定机器数趋势占位图">
+                  <div class="line one"></div>
+                  <div class="line three"></div>
+                </div>
+                <div class="axis-labels"><span>D-6</span><span>D-4</span><span>D-2</span><span>今天</span></div>
+                <div class="chart-use">老板看它：判断团队需求是在持续增长，还是只是个别日子突增。</div>
+              </article>
+
+              <article class="chart-card">
+                <div class="chart-title">锁定机器与锁定卡数对照 <span>今日，示意</span></div>
+                <div class="chart-box" aria-label="机器数和卡数对照占位图">
+                  <div class="line two"></div>
+                  <div class="line three"></div>
+                </div>
+                <div class="axis-labels"><span>整机锁</span><span>单卡锁</span><span>混合</span><span>峰值</span></div>
+                <div class="chart-use">老板看它：看清一台机器被整机占住，还是只占了部分卡，避免机器数掩盖卡级碎片。</div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="team-compare">
+        <div class="section-head">
+          <h3>团队对比表</h3>
+          <div class="section-note">用于从多个团队里找扩容、回收和协调对象</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>团队</th>
+                <th>今日锁定机器数</th>
+                <th>锁定卡数</th>
+                <th>峰值锁定机器数</th>
+                <th>锁定 XPU 利用率</th>
+                <th>锁定显存利用率</th>
+                <th>管理提示</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>团队 A</td>
+                <td class="mono">18 台</td>
+                <td class="mono">96 卡</td>
+                <td class="mono">24 台</td>
+                <td class="mono">46%</td>
+                <td class="mono">38%</td>
+                <td><span class="tip">需求高，使用质量中等，关注高峰排队</span></td>
+              </tr>
+              <tr>
+                <td>团队 B</td>
+                <td class="mono">14 台</td>
+                <td class="mono">112 卡</td>
+                <td class="mono">16 台</td>
+                <td class="mono">71%</td>
+                <td class="mono">64%</td>
+                <td><span class="tip">需求高且利用高，可作为扩容依据</span></td>
+              </tr>
+              <tr>
+                <td>团队 C</td>
+                <td class="mono">9 台</td>
+                <td class="mono">72 卡</td>
+                <td class="mono">12 台</td>
+                <td class="mono">18%</td>
+                <td class="mono">9%</td>
+                <td><span class="tip">锁定高但利用偏低，适合协调回收</span></td>
+              </tr>
+              <tr>
+                <td>团队 D</td>
+                <td class="mono">6 台</td>
+                <td class="mono">28 卡</td>
+                <td class="mono">8 台</td>
+                <td class="mono">口径待确认</td>
+                <td class="mono">口径待确认</td>
+                <td><span class="tip">团队归因需要补充映射</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="decision">
+        <div class="section-head">
+          <h3>管理判断入口</h3>
+          <div class="section-note">把全部、团队、个人三个视角连到具体问题</div>
+        </div>
+        <div class="decision-grid">
+          <article class="decision-card">
+            <h4>投入是否有效</h4>
+            <p>看全部视图的 XPU / 显存平均利用率、峰值和投入前后对比，判断共享存储等投入是否改善整体效率。</p>
+          </article>
+          <article class="decision-card">
+            <h4>是否需要扩容</h4>
+            <p>看全部视图高峰利用率，再结合团队视图峰值锁定机器数，区分容量不足和局部排队。</p>
+          </article>
+          <article class="decision-card">
+            <h4>资源是否分配合理</h4>
+            <p>看团队锁定机器数、锁定卡数和团队对比表，判断哪些团队需求高且使用充分。</p>
+          </article>
+          <article class="decision-card">
+            <h4>资源是否锁而不用</h4>
+            <p>看团队锁定资源利用率；需要落到具体人时，个人视图用于查看持锁人并协调释放或复用。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="assumptions">
+        <div class="section-head">
+          <h3>数据依赖与待确认口径</h3>
+          <div class="section-note">防止把原型误解为当前功能</div>
+        </div>
+        <div class="assumption-grid">
+          <div class="assumption">
+            <h4>当前已有基础</h4>
+            <ul>
+              <li>Monquery 可提供 XPU 与显存利用率时间序列，用于全部视图的均值、峰值和趋势。</li>
+              <li>Lock Bot 可提供锁定用户、节点或卡、起止时间，用于个人协作和团队归因。</li>
+              <li>现有页面已有「全部」趋势和「个人」节点明细。</li>
+            </ul>
+          </div>
+          <div class="assumption">
+            <h4>下一版需要补齐</h4>
+            <ul>
+              <li>投入事件标记和前后周期对比需要明确口径，避免把偶发波动误判为投入效果。</li>
+              <li>团队视图需要 user_id 到团队的映射表，或由 Lock Bot / 组织接口返回团队字段。</li>
+              <li>需要确认整机锁、单卡锁在团队统计里的折算口径。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">低保真原型，仅用于确认下一版全部 / 团队价值视图的信息结构、指标口径和老板视角价值。</footer>
+</div>
 </body>
 </html>
