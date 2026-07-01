@@ -1,0 +1,374 @@
+{
+    "bot_state": {
+        "node26": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            }
+        ],
+        "node27": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "yepeiwen02",
+                        "start_time": 1782906317,
+                        "duration": 14400,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "yepeiwen02",
+                        "start_time": 1782906317,
+                        "duration": 14400,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            }
+        ],
+        "node28": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            }
+        ],
+        "node29": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "exclusive",
+                "current_users": [
+                    {
+                        "user_id": "jiangziyuan",
+                        "start_time": 1782882293,
+                        "duration": 45000,
+                        "is_notified": false
+                    }
+                ]
+            }
+        ],
+        "node32": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            }
+        ],
+        "node34": [
+            {
+                "dev_id": 0,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 1,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 2,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 3,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 4,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 5,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 6,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            },
+            {
+                "dev_id": 7,
+                "dev_model": "p800",
+                "status": "idle",
+                "current_users": []
+            }
+        ]
+    }
+}
