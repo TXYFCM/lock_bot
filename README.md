@@ -22,26 +22,33 @@ node proxy.js                     # 启动本地代理（端口 8900）
 ```
 浏览器 (index.html — ES Module)
   │
+  ├─ styles.css      仪表盘样式（从 index.html 拆出）
+  │
+  ├─ timeline.js     时间线 / Canvas 视觉工具
+  │   ├─ drawUtilLine()             → XPU / 显存折线叠加
+  │   ├─ drawTimelineGrid()         → 1h 竖虚线 + 25/50/75% 横虚线
+  │   ├─ captureLayerSnapshot()     → 渲染后捕获快照
+  │   └─ bindCanvasHover()          → 快照恢复 + 增量圆点 + tooltip
+  │
   ├─ api.js          HTTP 请求层（30s AbortController 超时）
   │   ├─ loginLockBot()              → POST /lockbot/api/auth/login
   │   ├─ fetchLockBotList()          → GET  /lockbot/api/bots
   │   ├─ fetchLockBotState()         → GET  /lockbot/api/bots/{id}/state
   │   ├─ fetchLockBotOccupancy()     → GET  /lockbot/api/bots/{id}/occupancy?date=
-  │   └─ fetchMonqueryUtilization()  → GET  /monquery/monquery/getHistoryitemdata
-  │                                     (48 nodes × 17 metrics, interval=300s)
+  │   ├─ fetchMonqueryNodeUtilization()       → 整机 XPU，首屏快速渲染
+  │   ├─ fetchMonqueryCardUtilizationBatches() → 卡级 XPU/MEM，分批渐进渲染
+  │   └─ fetchMonqueryUtilization()            → 完整 17 指标兼容接口
   │
-  ├─ adapter.js     数据适配层
-  │   └─ adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occupancyHistory)
-  │       → NodeData[]
+  ├─ adapter.js      数据适配层
+  │   ├─ adaptNodeData(...)          → Lock Bot + Monquery → NodeData[]
+  │   └─ mergeMonqueryData(...)      → 整机/卡级批次增量合并
   │
-  └─ index.html     渲染 & 交互（单文件，约 1550 行 → 内联 CSS + ES Module + Canvas）
+  └─ index.html      页面结构 + 渲染编排
       ├─ 登录 / token 持久化 / 自动登录
       ├─ 双视图：「全部」(average) + 「个人」(节点列表)
-      ├─ loadAllData()   两阶段渐进式加载（Lock Bot 先行，Monquery 后补）
+      ├─ loadAllData()   多阶段渐进式加载（Lock Bot → 整机 Monquery → 卡级批次）
       ├─ renderStats()   8 张统计卡片（2 行 × 4 列）
-      ├─ renderList()    节点列表 + 过滤/排序/展开 + 僵尸锁检测
-      ├─ drawUtilLine()  Canvas 折线图（XPU 蓝 + 显存橙双线叠加）
-      ├─ Canvas 快照 hover（恢复快照 + 增量画点，避免全路径重绘）
+      ├─ renderList()    节点列表 + 过滤/排序/展开 + 加载态
       ├─ addGlobalNowLine()   红色当前时间竖线
       ├─ updateNowIdx()       每 60s 推进时间槽 + 重新判定节点状态
       └─ startAutoRefresh()   每 60s 自动刷新（page.hidden 时跳过）
@@ -55,7 +62,7 @@ node proxy.js                     # 启动本地代理（端口 8900）
 |-------------|--------|
 | `/lockbot/*` | `http://10.206.192.17:8875/*` |
 | `/monquery/*` | `http://api.mt.noah.baidu.com:8557/*` |
-| 其他 | 本地静态文件（`index.html`、`api.js`、`adapter.js`） |
+| 其他 | 本地静态文件（`index.html`、`styles.css`、`timeline.js`、`api.js`、`adapter.js`、`average.html`、`value.html` 等） |
 
 后端地址通过 `config.json` 配置，支持环境变量覆盖。代理启动时读取一次，不热更新。
 
@@ -63,9 +70,12 @@ node proxy.js                     # 启动本地代理（端口 8900）
 
 | 文件 | 作用 |
 |------|------|
-| `index.html` | 前端仪表盘 UI + 内联 CSS + 所有渲染/交互逻辑（约 1550 行，ES Module） |
-| `api.js` | API 调用层（纯 fetch 封装，零业务逻辑，约 140 行） |
-| `adapter.js` | 数据适配层（原始 API 响应 → `NodeData[]`，约 420 行） |
+| `index.html` | 前端仪表盘 UI 结构、登录/会话、视图切换、渐进式数据编排、统计/列表渲染入口 |
+| `styles.css` | 从 `index.html` 拆出的仪表盘样式 |
+| `timeline.js` | 时间线 Canvas 绘制、hover 快照恢复、tooltip 等纯视觉 helper |
+| `api.js` | API 调用层：Lock Bot fetch 封装 + Monquery 整机优先 / 卡级批次 / 完整兼容查询 |
+| `adapter.js` | 数据适配层：原始 API 响应 → `NodeData[]`、增量 Monquery 合并、部分数据状态 flags |
+| `average.html` | 全部视图的移动平均利用率页面（复用 `api.js` / `adapter.js`） |
 | `value.html` | 价值展示页（面向管理层，说明监控数据如何驱动决策） |
 | `proxy.js` | 本地代理（Node.js 原生 `http` 模块，约 140 行） |
 | `config.json` | 部署配置（代理端口 + 后端地址） |
@@ -89,7 +99,11 @@ NodeData = {
   cardOccupations: [{start, end, user}][8],  // 每卡 Lock Bot 占用记录
   cardMemOccupations: [{start, end}][8],     // 每卡显存推导占用
   botType: "DEVICE" | "NODE",        // 锁定粒度
-  hasMonqueryData: boolean,          // 是否有监控数据（bdc 为 false）
+  hasMonqueryData: boolean,          // 是否已有任意 Monquery 数据（兼容性总标记）
+  hasNodeMonqueryData: boolean,      // 是否已有整机级 XPU_AVERAGE_UTILIZATION
+  hasCardMonqueryData: boolean,      // 是否已有卡级 XPU 或 MEM 指标
+  hasMemMonqueryData: boolean,       // 是否已有卡级显存指标（决定显存均值/显存推导占用是否可信）
+  statusSource: "lockbot" | "node-metric" | "card-metrics",  // 当前状态来源
   hasActiveLock: boolean,            // 当前是否有活跃 Lock Bot 锁
   cardHasActiveLock: boolean[8],    // 逐卡 Lock Bot 活跃锁
   cardCount: number,                 // 实际卡数（通常 8）
@@ -116,10 +130,11 @@ NodeData = {
 
 | 常量 | 值 | 来源 | 说明 |
 |------|----|------|------|
-| BUSY 阈值 | **≥ 10%** | `adapter.js:367,210` | XPU 使用率 或 显存占用率 ≥ 10% → 该卡 BUSY |
-| FREE 判定 | 全部 8 卡 < 10% | `adapter.js:369` | `busyCards == 0 → FREE` |
-| BUSY 判定 | 全部 8 卡 ≥ 10% | `adapter.js:369` | `busyCards == 8 → BUSY` |
-| PARTIAL 判定 | 1~7 卡 ≥ 10% | `adapter.js:369` | 其他情况 → PARTIAL |
+| BUSY 阈值 | **≥ 10%** | `adapter.js` | XPU 使用率 或 显存占用率 ≥ 10% → BUSY |
+| 整机临时判定 | 节点 XPU ≥ 10% | `adapter.js` | 卡级指标未到时，`currentUtil >= 10 → BUSY` |
+| FREE 判定 | 全部 8 卡 < 10% | `adapter.js` | 卡级指标到达后，`busyCards == 0 → FREE` |
+| BUSY 判定 | 全部 8 卡 ≥ 10% | `adapter.js` | 卡级指标到达后，`busyCards == 8 → BUSY` |
+| PARTIAL 判定 | 1~7 卡 ≥ 10% | `adapter.js` | 卡级指标到达后，其他情况 → PARTIAL |
 | 利用率颜色：高 | **≥ 50%** | `index.html:1274` | 红色 `.util-value.high` |
 | 利用率颜色：中 | **≥ 20%** | `index.html:1275` | 橙色 `.util-value.mid` |
 | 利用率颜色：低 | **< 20%** | `index.html:1276` | 绿色 `.util-value.low` |
@@ -152,15 +167,17 @@ NodeData = {
 | 非备用集群 | `wxtky02-p800-8nic-vd` | `api.js:11` | 特定节点使用 |
 | 非备用节点 | `[32,34,35,37~51]` | `api.js:14` | 18 个节点走非备用 namespace |
 | bdc 节点 | `bdc9, bdc19, bdc28` | Lock Bot 侧 | 仅展示占用，无 Monquery 数据 |
-| Monquery 指标数 | **17** | `api.js:26-30` | 1 个 XPU_AVG + 8 个单卡 XPU + 8 个单卡 MEM |
-| 查询分批大小 | **16 节点/批** | `api.js:110` | 48 节点分 3 批并行，避免单次查询超时 |
+| Monquery 完整指标数 | **17** | `api.js` | 1 个 XPU_AVG + 8 个单卡 XPU + 8 个单卡 MEM |
+| 整机首屏查询 | **24 节点/批 × 1 指标** | `fetchMonqueryNodeUtilization()` | 只拉 `XPU_AVERAGE_UTILIZATION`，用于快速展示节点级利用率 |
+| 卡级渐进查询 | **8 节点/批 × 16 指标** | `fetchMonqueryCardUtilizationBatches()` | 单卡 XPU + 单卡 MEM 分批并行，按完成顺序渲染 |
+| 完整兼容查询 | **16 节点/批 × 17 指标** | `fetchMonqueryUtilization()` | 保留给 `average.html` 等完整数据场景 |
 
 ### 图表渲染
 
 | 常量 | 值 | 来源 | 说明 |
 |------|----|------|------|
-| 时间网格竖线 | 每 **12 槽（1h）** | `index.html:1422` | `for (i = 0; i <= 288; i += 12)` |
-| 利用率横线 | **25% / 50% / 75%** | `index.html:1432` | `for (pct of [0.25, 0.5, 0.75])` |
+| 时间网格竖线 | 每 **12 槽（1h）** | `timeline.js` | `for (i = 0; i <= 288; i += 12)` |
+| 利用率横线 | **25% / 50% / 75%** | `timeline.js` | `for (pct of [0.25, 0.5, 0.75])` |
 | XPU 图表 Y 轴上限 | **35%** | `index.html:1067` | `avgDrawChart(..., 35, [0,5,10,15,20,25,30,35])` |
 | MEM 图表 Y 轴上限 | **70%** | `index.html:1068` | `avgDrawChart(..., 70, [0,10,20,30,40,50,60,70])` |
 | 移动平均窗口 | **1/2/6/12** 槽 | `index.html:241-245` | 对应 5m / 10m / 30m / 1h |
@@ -190,20 +207,30 @@ NodeData = {
 - **Unix 毫秒**（> 1e12）→ `floor(ts / 1000)`
 - **ISO 字符串**：无时区标识时附加 `Z` 按 UTC 解析（Lock Bot occupancy API 返回 UTC 时间但不带 `Z` 后缀）
 
-### 2. 节点状态判定（逐卡）
+### 2. 节点状态判定（分层）
 
 ```
 effectiveIdx = max(0, nowIdx - 1)    // 最近一个已完成的 5 分钟槽
 
-对每张卡 c (0~7):
-  cardMemUtils[c][effectiveIdx] >= 10 || cardUtils[c][effectiveIdx] >= 10  →  该卡 BUSY
+① 无 Monquery 数据（如 bdc）：
+   hasActiveLock ? BUSY : FREE
+   statusSource = "lockbot"
 
-busyCards == 0  →  FREE
-busyCards == 8  →  BUSY
-其他            →  PARTIAL
+② 只有整机 XPU 指标（卡级数据还在加载）：
+   currentUtil >= 10 ? BUSY : FREE
+   statusSource = "node-metric"
 
-bdc 节点（无 Monquery）：hasActiveLock ? BUSY : FREE
+③ 卡级 XPU/MEM 指标到达后：
+   对每张卡 c (0~7):
+     cardMemUtils[c][effectiveIdx] >= 10 || cardUtils[c][effectiveIdx] >= 10  →  该卡 BUSY
+
+   busyCards == 0  →  FREE
+   busyCards == 8  →  BUSY
+   其他            →  PARTIAL
+   statusSource = "card-metrics"
 ```
+
+`hasMonqueryData` 是兼容性总标记；渲染显存、卡级详情、精确 BUSY 卡数时应优先看 `hasMemMonqueryData` / `hasCardMonqueryData`。
 
 ### 3. 僵尸锁检测（2h 滑动窗口）
 
@@ -239,20 +266,33 @@ NODE bot：
 - `botType` 跟随先命中 Bot 的类型
 - 合并后排序：`node` 前缀在前、`bdc` 在后，各自按数字 ID 升序
 
-### 6. 两阶段渐进式渲染
+### 6. 多阶段渐进式渲染
 
 ```
 loadAllData():
-  ① Promise.all([所有 Bot state, 所有 Bot 历史占用])        ← 1~3s
-     → 若首次加载 → adaptAndRender(state, null) 先行出图
+  ① Promise.all([所有 Bot state, 所有 Bot 历史占用])
+     → adaptAndRender(state, null, { phase: 'lockbot' })
      → 节点名、占用红条即时可见，利用率显示 "--"
 
-  ② await fetchMonqueryUtilization(start, end)               ← 10~30s（~5MB）
-     → adaptAndRender(state, monqueryData) 补全利用率
+  ② await fetchMonqueryNodeUtilization(start, end)
+     → 只拉 XPU_AVERAGE_UTILIZATION（24 节点/批）
+     → mergeMonqueryData(existing, nodeData)
+     → adaptAndRender(..., { phase: 'node', cardLoading: true })
+     → 节点级 XPU 利用率先出现，显存/卡级仍显示加载态
 
-  ③ 自动刷新时跳过步骤 ① 的先行渲染（hasExistingData 为 true）
-     等 Monquery 到达后一次渲染，避免闪烁
+  ③ for await (batch of fetchMonqueryCardUtilizationBatches(start, end, { batchSize: 8 }))
+     → 拉 8 卡 XPU + 8 卡 MEM（8 节点/批，并行请求，按完成顺序 yield）
+     → mergeMonqueryData(existing, batch.data)
+     → adaptAndRender(..., { phase: 'cards', cardLoading: true })
+     → 卡级详情、显存折线、显存均值逐批补齐
+
+  ④ 所有卡级批次完成
+     → adaptAndRender(..., { phase: 'complete', cardLoading: false })
 ```
+
+每次 `loadAllData()` 都会递增 `loadSeq`。任何 `await` 后如果发现当前序列号已不是最新值，就直接放弃本次渲染，避免手动刷新 / 自动刷新并发时旧请求晚到覆盖新数据。
+
+UI 加载语义：整机阶段显存显示 `--` / `加载中`；展开节点时如果 `hasMonqueryData && !hasCardMonqueryData`，展示“卡级数据加载中…”，避免把尚未到达的卡级指标误显示为 0%。
 
 ### 7. 占用数据来源
 
@@ -260,28 +300,29 @@ loadAllData():
 |------|-----|------|
 | 当前活跃锁 | `GET /api/bots/{id}/state` | `current_users[].start_time + duration` |
 | 当天历史锁 | `GET /api/bots/{id}/occupancy?date=` | `start_time + end_time + duration_seconds` |
-| 显存推导 | `deriveMemOccupations()` | 逐槽扫 `cardMemUtils[c]`，连续 ≥10% 合并为占用段 |
+| 显存推导 | `deriveMemOccupations()` | `hasMemMonqueryData === true` 后逐槽扫 `cardMemUtils[c]`，连续 ≥10% 合并为占用段 |
 
-三类数据按 `start,end,user` 三元组去重后合并。DEVICE bot 的节点级占用取 8 卡时间范围的并集（最左 start ~ 最右 end）。
+三类数据按 `start,end,user` 三元组去重后合并。DEVICE bot 的节点级占用取 8 卡时间范围的并集（最左 start ~ 最右 end）。卡级显存数据未到达前，时间线上只展示 Lock Bot 当前/历史占用，不展示显存推导占用。
 
 ### 8. 统计卡片分类
 
-| 卡片 | 有 Monquery 的节点 (node) | 无 Monquery 的节点 (bdc) |
-|------|--------------------------|--------------------------|
-| **BUSY 节点** | busyCards > 0 | hasActiveLock → BUSY |
-| **BUSY 卡数** | 逐卡判定 memUtil≥10 或 util≥10 | hasActiveLock → 8 张全算 |
-| **LOCKED 节点** | hasActiveLock | hasActiveLock |
-| **LOCKED 卡数** | cardHasActiveLock 逐卡求和 | cardHasActiveLock 逐卡求和 |
+| 卡片 | 整机 Monquery 阶段 | 卡级 Monquery 到达后 | 无 Monquery 的节点 (bdc) |
+|------|-------------------|----------------------|--------------------------|
+| **BUSY 节点** | `currentUtil >= 10` 临时判定 | `busyCards > 0` | `hasActiveLock → BUSY` |
+| **BUSY 卡数** | 等待卡级数据，不用假 0 统计 | 逐卡判定 memUtil≥10 或 util≥10 | `hasActiveLock → 8 张全算` |
+| **LOCKED 节点** | `hasActiveLock` | `hasActiveLock` | `hasActiveLock` |
+| **LOCKED 卡数** | `cardHasActiveLock` 逐卡求和 | `cardHasActiveLock` 逐卡求和 | `cardHasActiveLock` 逐卡求和 |
 
-关键区分：**BUSY = 实际使用**（利用率判定），**LOCKED = Lock Bot 锁状态**。bdc 节点无法获取利用率，BUSY = LOCKED。
+关键区分：**BUSY = 实际使用**（利用率判定），**LOCKED = Lock Bot 锁状态**。bdc 节点无法获取利用率，BUSY = LOCKED。整机阶段可以先给节点级临时状态，但精确 BUSY 卡数必须等待卡级指标。
 
 ### 9. XPU / 显存平均利用率卡片
 
 ```
-仅计算 hasMonqueryData === true 的 node 节点（排除 bdc）
+仅计算有 Monquery 数据的 node 节点（排除 bdc）
 计算范围：slot 120 (10:00) → effectiveIdx
 
-对每个 node：计算槽 120~effectiveIdx 的 avgUtil[] 均值
+XPU 平均：hasNodeMonqueryData === true 后即可计算 avgUtil[] 均值
+显存平均：hasMemMonqueryData === true 后才计算 avgMemUtil[] 均值
 对所有 node 的均值再取平均（每节点等权重）
 
 effectiveIdx < 120 → 显示 "--"（10 点前不计算）
@@ -317,10 +358,12 @@ effectiveIdx < 120 → 显示 "--"（10 点前不计算）
 | CAUTION 🟡 | 监控数据获取失败 | Monquery 不可达，利用率显示 `--`，占用信息仍可见 |
 | ERROR 🔴 | 所有 Bot 离线 | Lock Bot 全挂，保留上次节点列表 |
 
+个人视图状态栏还会展示当前加载阶段：`lockbot`（锁状态）→ `node`（整机监控）→ `cards`（卡级加载中）→ `complete`（已完成）。
+
 双 API 均不可达且连续失败 ≥ 3 次 → 全页错误覆盖层（显示连续失败次数 + 上次成功时间，可手动重试或返回登录）。
 
 ### 交互细节
-- **Canvas hover 快照恢复**：渲染后捕获 `toDataURL()` 快照，hover 时 `drawImage` 恢复 + 增量 `arc()` 画圆点，不重绘路径
+- **Canvas hover 快照恢复**：实现位于 `timeline.js`。渲染后捕获 `toDataURL()` 快照，hover 时 `drawImage` 恢复 + 增量 `arc()` 画圆点，不重绘路径
 - **页面不可见跳过刷新**：`document.hidden` 时跳过自动刷新，切回后立即拉取
 - **Token 持久化**：`localStorage` 存 JSON `{token, username, savedAt}`，4 小时过期自动清除；退出登录时主动清除
 - **自动登录**：页面加载时先尝试恢复 session，失败则自动用默认账号登录，再失败才显示登录表单
@@ -362,16 +405,23 @@ Occupancy API 返回格式：`[{node_key, user_id, start_time, end_time, duratio
 
 **查询参数**：
 - `namespaces` — 节点命名空间（逗号分隔，**不支持通配符**，节点列表必须硬编码）
-- `items` — 指标名（逗号分隔，固定 17 个）
+- `items` — 指标名（逗号分隔，按查询模式选择）
 - `start` / `end` — 时间范围，格式 `YYYYMMDDHHmmss`
 - `interval` — 采样间隔秒数，固定 300（5 分钟）
 
-**17 个指标**：
+**指标分组**：
 ```
-XPU_AVERAGE_UTILIZATION           // 节点级平均 XPU 使用率
-XPU0_XPU_UTILIZATION ~ XPU7_XPU_UTILIZATION   // 8 张卡各自 XPU 使用率
-XPU0_MEM_UTILIZATION ~ XPU7_MEM_UTILIZATION   // 8 张卡各自显存利用率
+XPU_AVERAGE_UTILIZATION                    // 节点级平均 XPU 使用率（整机首屏）
+XPU0_XPU_UTILIZATION ~ XPU7_XPU_UTILIZATION // 8 张卡各自 XPU 使用率
+XPU0_MEM_UTILIZATION ~ XPU7_MEM_UTILIZATION // 8 张卡各自显存利用率
 ```
+
+**查询模式**：
+| 函数 | 指标 | 批大小 | 用途 |
+|------|------|--------|------|
+| `fetchMonqueryNodeUtilization()` | 1 个整机 XPU 指标 | 24 节点/批 | 个人视图首屏快速展示节点级利用率 |
+| `fetchMonqueryCardUtilizationBatches()` | 16 个卡级 XPU/MEM 指标 | 8 节点/批 | async generator，卡级数据分批到达后渐进渲染 |
+| `fetchMonqueryUtilization()` | 完整 17 指标 | 16 节点/批 | 兼容完整数据场景，如 `average.html` |
 
 ## 部署
 
@@ -419,7 +469,7 @@ nohup node proxy.js > /tmp/proxy.log 2>&1 &         # 后台
 
 ### 本地开发
 
-修改 `index.html` / `api.js` / `adapter.js` 后需重启代理（代理在请求时读取文件，但 `config.json` 仅启动时读取一次）。
+修改 `index.html` / `styles.css` / `timeline.js` / `api.js` / `adapter.js` 等运行时文件后需刷新页面；修改 `index.html` / `api.js` / `adapter.js` / `proxy.js` / `config.json` 后按项目约定重启代理。README-only 文档修改不需要重启代理。
 
 ```bash
 # 一键重启 + 验证（推荐）

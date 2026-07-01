@@ -22,12 +22,12 @@ function buildNamespace(nodeNum) {
   return `${cluster}-node${nodeNum}.wxtky02`;
 }
 
-// 17 个核心指标
-const MONQUERY_ITEMS = [
-  'XPU_AVERAGE_UTILIZATION',
-  ...Array.from({ length: 8 }, (_, c) => `XPU${c}_XPU_UTILIZATION`),
-  ...Array.from({ length: 8 }, (_, c) => `XPU${c}_MEM_UTILIZATION`),
-];
+// 核心指标：整机级先展示，卡级指标后续渐进补齐
+const MONQUERY_NODE_ITEMS = ['XPU_AVERAGE_UTILIZATION'];
+const MONQUERY_CARD_XPU_ITEMS = Array.from({ length: 8 }, (_, c) => `XPU${c}_XPU_UTILIZATION`);
+const MONQUERY_CARD_MEM_ITEMS = Array.from({ length: 8 }, (_, c) => `XPU${c}_MEM_UTILIZATION`);
+const MONQUERY_CARD_ITEMS = [...MONQUERY_CARD_XPU_ITEMS, ...MONQUERY_CARD_MEM_ITEMS];
+const MONQUERY_ITEMS = [...MONQUERY_NODE_ITEMS, ...MONQUERY_CARD_ITEMS];
 
 function fetchWithTimeout(url, options = {}, timeout = 30000) {
   const controller = new AbortController();
@@ -100,34 +100,74 @@ export async function fetchLockBotOccupancy(botId, date, token) {
 }
 
 /**
- * 批量查询 48 个节点的监控数据（分 3 批并行，避免单次查询超时）
+ * 查询指定节点 + 指标的 Monquery 数据
+ * @param {string} start - 起始时间 YYYYMMDDHHmmss
+ * @param {string} end   - 结束时间 YYYYMMDDHHmmss
+ * @param {number[]} nodeNums - 节点编号
+ * @param {string[]} items - 指标名
+ * @returns {Promise<Array>} monquery data[] 数组
+ */
+async function fetchMonqueryItems(start, end, nodeNums, items) {
+  if (!nodeNums.length || !items.length) return [];
+  const namespaces = nodeNums.map(buildNamespace).join(',');
+  const url = `${MONQUERY_BASE}/monquery/getHistoryitemdata` +
+    `?namespaces=${encodeURIComponent(namespaces)}` +
+    `&items=${encodeURIComponent(items.join(','))}` +
+    `&start=${start}&end=${end}&interval=300`;
+  const resp = await fetchWithTimeout(url);
+  if (!resp.ok) throw new Error(`Monquery fetch failed: ${resp.status}`);
+  const data = await resp.json();
+  if (!data.success) throw new Error(`Monquery error: ${data.message}`);
+  return data.data || [];
+}
+
+function makeNodeBatches(batchSize) {
+  const batches = [];
+  for (let i = 0; i < MONITORED_NODES.length; i += batchSize) {
+    batches.push(MONITORED_NODES.slice(i, i + batchSize));
+  }
+  return batches;
+}
+
+/**
+ * 先查询整机级 XPU 平均利用率，用于快速首屏渲染
+ */
+export async function fetchMonqueryNodeUtilization(start, end) {
+  const results = await Promise.all(
+    makeNodeBatches(24).map(nodeNums => fetchMonqueryItems(start, end, nodeNums, MONQUERY_NODE_ITEMS))
+  );
+  return results.flat();
+}
+
+/**
+ * 分批查询卡级 XPU/显存指标，调用方可按批次渐进渲染
+ */
+export async function* fetchMonqueryCardUtilizationBatches(start, end, options = {}) {
+  const batchSize = options.batchSize || 8;
+  const pending = makeNodeBatches(batchSize).map((nodeNums, index) => {
+    const entry = { index, nodeNums, promise: null };
+    entry.promise = fetchMonqueryItems(start, end, nodeNums, MONQUERY_CARD_ITEMS)
+      .then(data => ({ entry, nodeNums, data }));
+    return entry;
+  });
+  while (pending.length) {
+    const batch = await Promise.race(pending.map(entry => entry.promise));
+    const idx = pending.indexOf(batch.entry);
+    if (idx >= 0) pending.splice(idx, 1);
+    yield { nodeNums: batch.nodeNums, data: batch.data };
+  }
+}
+
+/**
+ * 批量查询 48 个节点的完整监控数据（保留兼容 average.html 等旧调用）
  * @param {string} start - 起始时间 YYYYMMDDHHmmss
  * @param {string} end   - 结束时间 YYYYMMDDHHmmss
  * @returns {Promise<Array>} monquery data[] 数组
  */
 export async function fetchMonqueryUtilization(start, end) {
-  const items = MONQUERY_ITEMS.join(',');
-  const BATCH_SIZE = 16;
-  const batches = [];
-  for (let i = 0; i < MONITORED_NODES.length; i += BATCH_SIZE) {
-    batches.push(MONITORED_NODES.slice(i, i + BATCH_SIZE));
-  }
-
   const results = await Promise.all(
-    batches.map(async (nodeNums) => {
-      const namespaces = nodeNums.map(buildNamespace).join(',');
-      const url = `${MONQUERY_BASE}/monquery/getHistoryitemdata` +
-        `?namespaces=${encodeURIComponent(namespaces)}` +
-        `&items=${encodeURIComponent(items)}` +
-        `&start=${start}&end=${end}&interval=300`;
-      const resp = await fetchWithTimeout(url);
-      if (!resp.ok) throw new Error(`Monquery fetch failed: ${resp.status}`);
-      const data = await resp.json();
-      if (!data.success) throw new Error(`Monquery error: ${data.message}`);
-      return data.data || [];
-    })
+    makeNodeBatches(16).map(nodeNums => fetchMonqueryItems(start, end, nodeNums, MONQUERY_ITEMS))
   );
-
   return results.flat();
 }
 
@@ -138,4 +178,4 @@ export function isAbortError(err) {
   return err && err.name === 'AbortError';
 }
 
-export { MONITORED_NODES, MONQUERY_ITEMS };
+export { MONITORED_NODES, MONQUERY_ITEMS, MONQUERY_NODE_ITEMS, MONQUERY_CARD_ITEMS };

@@ -4,178 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>开发机集群资源监控</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #eef1f6; color: #1e293b; padding: 20px; }
-h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
-
-/* Login */
-.login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
-.login-card { background: #fff; border-radius: 12px; padding: 32px 28px; width: 340px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04); }
-.login-card h2 { font-size: 17px; margin-bottom: 20px; text-align: center; color: #64748b; }
-.login-card input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; transition: border-color .2s; }
-.login-card input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
-.login-card button { width: 100%; padding: 10px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; transition: background .2s; }
-.login-card button:hover { background: #4338ca; }
-.login-card button:disabled { background: #a5b4fc; cursor: not-allowed; }
-.login-error { color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; }
-.login-hint { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px; }
-
-/* Stats */
-.stats-bar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-.stats-bar-row { display: flex; gap: 12px; justify-content: center; }
-.stat-card { background: #fff; border-radius: 10px; padding: 12px 14px; flex: 1 1 220px; max-width: 300px; display: flex; align-items: baseline; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03); position: relative; overflow: visible; }
-.stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 2px 0 0 2px; }
-.stat-card.total::before { background: #4f46e5; }
-.stat-card.free::before { background: #16a34a; }
-.stat-card.busy::before { background: #dc2626; }
-.stat-card.locked::before { background: #d97706; }
-.stat-card.device-free::before { background: #0ea5e9; }
-.stat-card.xpu-avg::before { background: #7c3aed; }
-.stat-card.mem-avg::before { background: #0891b2; }
-.stat-card .label { font-size: 11px; color: #64748b; letter-spacing: .3px; flex-shrink: 0; white-space: nowrap; }
-.stat-card .value { font-size: 21px; font-weight: 700; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; margin-left: auto; }
-.stat-card .value.total { color: #4f46e5; }
-.stat-card .value.free { color: #16a34a; }
-.stat-card .value.busy { color: #dc2626; }
-.stat-card .value.locked { color: #d97706; }
-.stat-card .value.device-free { color: #0ea5e9; }
-.stat-card .value.xpu-avg { color: #7c3aed; }
-.stat-card .value.mem-avg { color: #0891b2; }
-.stat-card .value.pct { font-size: 17px; }
-
-.stat-card .tip-icon { position: absolute; top: 6px; right: 8px; width: 18px; height: 18px; border-radius: 50%; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; transition: background .15s, color .15s; line-height: 1; font-family: inherit; }
-.stat-card.xpu-avg, .stat-card.mem-avg { padding-right: 40px; }
-.stat-card .tip-icon:hover { background: #4f46e5; color: #fff; }
-.stat-card .tip-popup { display: none; position: absolute; top: 32px; right: 4px; background: #1e293b; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5; white-space: normal; width: 220px; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-.stat-card .tip-popup.show { display: block; }
-
-/* Filters */
-.filters { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-.filters label { font-size: 12px; color: #94a3b8; font-weight: 500; }
-.search-input { width: 150px; padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; outline: none; }
-.search-input:focus { border-color: #4f46e5; }
-.status-btn { padding: 3px 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 12px; cursor: pointer; background: #fff; color: #64748b; transition: all .15s; user-select: none; }
-.status-btn:hover { border-color: #cbd5e1; }
-.status-btn.active { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; font-weight: 500; }
-
-/* Nodes */
-.node-row { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.03), 0 2px 6px rgba(0,0,0,.02); transition: box-shadow .2s; }
-.node-row:hover { box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06); }
-.node-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.node-name { font-weight: 600; font-size: 15px; min-width: 80px; color: #1e293b; }
-	.expand-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; border-radius: 6px; border: none; font-size: 11px; font-weight: 600; color: #fff; background: #4f46e5; cursor: pointer; user-select: none; margin-left: 6px; transition: all .2s; line-height: 1.6; }
-	.expand-toggle:hover { background: #4338ca; }
-	.type-tag { font-size: 9px; font-weight: 600; letter-spacing: .5px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
-	.type-tag-DEVICE { background: #eef2ff; color: #4f46e5; }
-	.type-tag-NODE { background: #f1f5f9; color: #64748b; }
-.node-stats { font-size: 12px; color: #64748b; margin-left: auto; display: flex; align-items: center; gap: 2px; }
-.node-stats .util-value { font-weight: 700; font-size: 14px; margin-left: 4px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.node-stats .util-value.high { color: #dc2626; }
-.node-stats .util-value.mid { color: #d97706; }
-.node-stats .util-value.low { color: #16a34a; }
-.node-stats .util-value.nodata { color: #94a3b8; font-weight: 400; font-size: 12px; font-family: inherit; }
-.badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
-.badge-FREE { background: #dcfce7; color: #16a34a; }
-.badge-PARTIAL { background: #fef3c7; color: #d97706; }
-.badge-BUSY { background: #fee2e2; color: #dc2626; }
-.timeline-container { position: relative; height: 40px; background: #f8fafc; border-radius: 6px; overflow: visible; border: 1px solid #e2e8f0; }
-.time-labels { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 2px; padding: 0 2px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.occupy-block { position: absolute; top: 0; height: 100%; background: rgba(220, 38, 38, .15); border-left: 1px solid rgba(220,38,38,.3); border-right: 1px solid rgba(220,38,38,.3); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.occupy-block .occupy-user { font-size: 10px; color: #b91c1c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
-.occupy-block:hover { background: rgba(220, 38, 38, .28); }
-.tooltip { position: absolute; background: #1e293b; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; white-space: nowrap; z-index: 100; display: none; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.util-line { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-/* Status bar */
-.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 14px; border-radius: 8px; font-size: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; }
-.status-bar.caution { background: #fffbeb; border-color: #fde68a; }
-.status-bar.error { background: #fef2f2; border-color: #fecaca; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; flex-shrink: 0; animation: pulse-dot 2s ease-in-out infinite; }
-@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-.status-bar.caution .status-dot { background: #d97706; }
-.status-bar.error .status-dot { background: #dc2626; }
-.status-text { color: #475569; }
-.status-timestamp { color: #d97706; font-size: 12px; font-weight: 600; margin-left: auto; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.status-retry { cursor: pointer; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 10px; font-size: 11px; background: #fff; color: #64748b; transition: all .15s; }
-.status-retry:hover { border-color: #4f46e5; color: #4f46e5; }
-
-/* View Bar (type toggles + legend + status) */
-.view-bar { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; flex-wrap: wrap; }
-.type-toggles { display: flex; gap: 4px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
-.type-btn { padding: 4px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; background: transparent; color: #64748b; font-weight: 500; transition: all .15s; user-select: none; }
-.type-btn:hover { color: #1e293b; }
-.type-btn.active { background: #4f46e5; color: #fff; }
-.legend-items { display: flex; gap: 16px; align-items: center; }
-
-/* Average View */
-#average-view { margin-bottom: 16px; }
-.avg-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; font-size: 12px; color: #64748b; }
-.avg-controls label { font-weight: 500; }
-.avg-controls input[type="date"] { padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: "SF Mono","JetBrains Mono",monospace; color: #1e293b; background: #fff; outline: none; width: 120px; }
-.avg-controls input[type="date"]:focus { border-color: #4f46e5; }
-.window-toggles { display: flex; gap: 2px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
-.win-btn { padding: 3px 12px; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; background: transparent; color: #94a3b8; font-weight: 500; font-family: "SF Mono","JetBrains Mono",monospace; transition: all .15s; user-select: none; }
-.win-btn:hover { color: #1e293b; }
-.win-btn.active { background: #e2e8f0; color: #1e293b; }
-.charts-row { display: flex; flex-direction: column; gap: 16px; }
-.chart-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
-.chart-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1e293b; text-align: center; }
-.chart-legend { display: flex; align-items: center; gap: 16px; font-size: 11px; margin-bottom: 8px; color: #64748b; }
-.chart-legend .legend-item { display: flex; align-items: center; gap: 6px; }
-.chart-legend .legend-line-solid { width: 16px; height: 2px; border-radius: 1px; }
-.chart-legend .legend-line-dash { width: 16px; height: 2px; border: none; border-radius: 1px; }
-.chart-wrap { position: relative; height: 310px; }
-.chart-wrap canvas { width: 100%; height: 100%; }
-
-/* Toast */
-.toast { position: fixed; top: 16px; right: 16px; background: #1e293b; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
-.toast.show { opacity: 1; }
-
-/* Error Overlay */
-.error-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 300; }
-.error-overlay.hidden { display: none; }
-.error-card { background: #fff; border-radius: 14px; padding: 40px 32px; width: 420px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.15); }
-.error-card .error-icon { font-size: 44px; margin-bottom: 16px; }
-.error-card .error-title { font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
-.error-card .error-detail { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 20px; }
-.error-card .error-meta { font-size: 11px; color: #94a3b8; margin-bottom: 18px; }
-.error-card .error-meta span { margin: 0 8px; }
-.error-card .error-actions { display: flex; gap: 10px; justify-content: center; }
-.error-card .error-actions button { padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s; }
-.error-card .error-actions button.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
-.error-card .error-actions button.primary:hover { background: #4338ca; }
-.error-card .error-actions button:not(.primary):hover { border-color: #4f46e5; color: #4f46e5; }
-
-/* Badge: NODATA */
-.badge-NODATA { background: #f1f5f9; color: #94a3b8; }
-
-/* 异常标记：僵尸锁 */
-.badge-warn-zombie { background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
-
-/* DEVICE 节点内联卡片 */
-.card-row { padding: 4px 10px; font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 12px; border-top: 1px solid #f1f5f9; }
-.card-row .card-name { min-width: 44px; font-weight: 500; }
-.card-row .card-val { font-size: 11px; min-width: 44px; text-align: right; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.card-row .card-lock { font-size: 10px; color: #b91c1c; }
-.card-timeline { padding: 0 10px 2px 56px; position: relative; }
-.card-timeline .timeline-container { height: 24px; }
-
-.legend { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; }
-.status-tag { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 6px; border-radius: 3px; }
-.status-tag-ok { background: #dcfce7; color: #16a34a; }
-.status-tag-err { background: #fee2e2; color: #dc2626; }
-.status-tag-caution { background: #fef3c7; color: #d97706; }
-.status-time-mini { color: #94a3b8; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
-.legend-item { display: flex; align-items: center; gap: 4px; }
-.legend-line { width: 20px; height: 2px; }
-
-/* Now line - global */
-#node-list { position: relative; }
-.global-now-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(220, 38, 38, .35); z-index: 20; pointer-events: none; }
-.global-now-label { position: absolute; top: -15px; transform: translateX(-50%); font-size: 10px; color: rgba(220, 38, 38, .6); white-space: nowrap; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; font-weight: 500; }
-
-
-</style>
+<link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 
@@ -247,11 +76,11 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
     </div>
     <div class="charts-row" id="avg-charts-row">
       <div class="chart-panel">
-        <div class="chart-panel-title">XPU移动利用率趋势</div>
+        <div class="chart-panel-title">XPU利用率趋势</div>
         <div class="chart-wrap" id="avg-xpu-chart-wrap"><canvas id="avg-xpu-chart"></canvas></div>
       </div>
       <div class="chart-panel">
-        <div class="chart-panel-title">显存移动利用率趋势</div>
+        <div class="chart-panel-title">显存利用率趋势</div>
         <div class="chart-wrap" id="avg-mem-chart-wrap"><canvas id="avg-mem-chart"></canvas></div>
       </div>
     </div>
@@ -276,8 +105,9 @@ h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { loginLockBot, fetchLockBotList, fetchLockBotState, fetchLockBotOccupancy, fetchMonqueryUtilization, isAbortError, MONITORED_NODES } from './api.js';
-import { adaptNodeData } from './adapter.js';
+import { loginLockBot, fetchLockBotList, fetchLockBotState, fetchLockBotOccupancy, fetchMonqueryUtilization, fetchMonqueryNodeUtilization, fetchMonqueryCardUtilizationBatches, isAbortError, MONITORED_NODES } from './api.js';
+import { adaptNodeData, mergeMonqueryData } from './adapter.js';
+import { drawUtilLine, captureLayerSnapshot, bindCanvasHover as bindTimelineCanvasHover } from './timeline.js';
 
 const SLOT_COUNT = 288; // 24h / 5min = 288 槽
 const tooltip = document.getElementById('tooltip');
@@ -295,6 +125,9 @@ let refreshTimer = null;
 let allBots = [];
 let consecutiveFailures = 0;
 let lastSuccessTime = null;
+let loadSeq = 0;
+let monqueryMergedData = [];
+let currentLoadPhase = 'idle';
 
 // Average view state
 let viewType = 'all';  // 'all' | 'personal'
@@ -527,9 +360,12 @@ function repositionNowLine() {
 }
 
 async function loadAllData() {
+  const seq = ++loadSeq;
+  monqueryMergedData = [];
+  currentLoadPhase = 'lockbot';
   const status = {
     lockBot: { ok: true, failedBotIds: [], totalBots: allBots.length },
-    monquery: { ok: true, errorMessage: '' },
+    monquery: { ok: true, errorMessage: '', phase: 'lockbot', cardLoading: false },
     nodeDataQuality: {},
     lastUpdated: Date.now(),
   };
@@ -564,30 +400,57 @@ async function loadAllData() {
   // 合并所有 bot 的历史占用记录
   const occupancyHistory = occupancyResults.flat();
 
-  // 2. 更新当前时间槽 + 先用 Lock Bot 数据渲染（仅首次加载，避免自动刷新时闪烁）
+  // 2. 更新当前时间槽 + 先用 Lock Bot 数据渲染
   nowIdx = calcNowIdx();
-  const hasExistingData = nodes.length > 0 && nodes.some(n => n.hasMonqueryData !== false);
-  if (!hasExistingData) {
-    adaptAndRender(stateResults, null, status, occupancyHistory);
-  }
+  if (seq !== loadSeq) return status;
+  adaptAndRender(stateResults, null, status, occupancyHistory, { phase: 'lockbot' });
+  renderStatusBar(status);
 
-  // 3. 拉取 Monquery 数据（慢，5 分钟粒度 ~5MB，可能 10-30 秒）
-  let monqueryData = null;
+  // 3. 先拉整机级 XPU 平均利用率，快速补齐主列表
   try {
-    monqueryData = await fetchMonqueryUtilization(start, end);
+    const nodeMonqueryData = await fetchMonqueryNodeUtilization(start, end);
+    if (seq !== loadSeq) return status;
+    monqueryMergedData = mergeMonqueryData(monqueryMergedData, nodeMonqueryData);
+    status.monquery.ok = true;
+    status.monquery.phase = 'node';
+    status.monquery.cardLoading = true;
+    currentLoadPhase = 'node';
+    adaptAndRender(stateResults, monqueryMergedData, status, occupancyHistory, { phase: 'node', cardLoading: true });
+    renderStatusBar(status);
   } catch (err) {
     status.monquery.ok = false;
     status.monquery.errorMessage = err.message;
-    console.error('Monquery fetch failed:', err);
+    console.error('Monquery node fetch failed:', err);
   }
 
-  // 4. Monquery 数据到达后再渲染一次（补上利用率）
-  if (monqueryData) {
-    status.monquery.ok = true;
-    adaptAndRender(stateResults, monqueryData, status, occupancyHistory);
+  // 4. 卡级 XPU/显存分批补齐，批次到达即渲染
+  if (status.monquery.ok) {
+    try {
+      for await (const batch of fetchMonqueryCardUtilizationBatches(start, end, { batchSize: 8 })) {
+        if (seq !== loadSeq) return status;
+        monqueryMergedData = mergeMonqueryData(monqueryMergedData, batch.data);
+        status.monquery.phase = 'cards';
+        status.monquery.cardLoading = true;
+        currentLoadPhase = 'cards';
+        adaptAndRender(stateResults, monqueryMergedData, status, occupancyHistory, { phase: 'cards', cardLoading: true });
+        renderStatusBar(status);
+      }
+      if (seq !== loadSeq) return status;
+      status.monquery.phase = 'complete';
+      status.monquery.cardLoading = false;
+      currentLoadPhase = 'complete';
+      adaptAndRender(stateResults, monqueryMergedData, status, occupancyHistory, { phase: 'complete', cardLoading: false });
+    } catch (err) {
+      status.monquery.ok = false;
+      status.monquery.errorMessage = err.message;
+      status.monquery.cardLoading = false;
+      console.error('Monquery card fetch failed:', err);
+      renderStatusBar(status);
+    }
   }
 
   status.lastUpdated = Date.now();
+  renderStatusBar(status);
 
   // 5. 错误覆盖层逻辑：双 API 均失败时计数，连续 3 次以上且有存量数据则弹出
   const bothFailed = !status.lockBot.ok && !status.monquery.ok;
@@ -614,7 +477,8 @@ async function loadAllData() {
  * @param {Array|null} monqueryData - Monquery 数据（null 表示还没拿到）
  * @param {object} status - ApiStatus 对象（in/out）
  */
-function adaptAndRender(stateResults, monqueryData, status, occupancyHistory = []) {
+function adaptAndRender(stateResults, monqueryData, status, occupancyHistory = [], options = {}) {
+  currentLoadPhase = options.phase || currentLoadPhase;
   // 合并：同一节点出现在多个 bot 中时，先到先得
   const mergedState = {};
   const nodeBotTypes = {};
@@ -703,7 +567,10 @@ function doLogout() {
   hideErrorOverlay();
   consecutiveFailures = 0;
   clearSession();
+  loadSeq++;
   token = null;
+  monqueryMergedData = [];
+  currentLoadPhase = 'idle';
   nodes = [];
   avgTodayNodes = []; avgYestNodes = [];
   avgTodayXpuMA = []; avgTodayMemMA = [];
@@ -854,23 +721,24 @@ function renderStats() {
   const SLOT_10AM = 120;
   let avgXpuStr = '--', avgMemStr = '--';
   if (effectiveIdx >= SLOT_10AM) {
-    let xpuSum = 0, memSum = 0, nodeCount = 0;
+    let xpuSum = 0, memSum = 0, xpuNodeCount = 0, memNodeCount = 0;
     const slotCount = effectiveIdx - SLOT_10AM + 1;
     for (const node of nodes) {
-      if (!node.hasMonqueryData) continue;
-      let nodeXpu = 0, nodeMem = 0;
-      for (let i = SLOT_10AM; i <= effectiveIdx; i++) {
-        nodeXpu += node.avgUtil[i];
-        nodeMem += node.avgMemUtil[i];
+      if (node.hasNodeMonqueryData) {
+        let nodeXpu = 0;
+        for (let i = SLOT_10AM; i <= effectiveIdx; i++) nodeXpu += node.avgUtil[i];
+        xpuSum += nodeXpu / slotCount;
+        xpuNodeCount++;
       }
-      xpuSum += nodeXpu / slotCount;
-      memSum += nodeMem / slotCount;
-      nodeCount++;
+      if (node.hasMemMonqueryData) {
+        let nodeMem = 0;
+        for (let i = SLOT_10AM; i <= effectiveIdx; i++) nodeMem += node.avgMemUtil[i];
+        memSum += nodeMem / slotCount;
+        memNodeCount++;
+      }
     }
-    if (nodeCount > 0) {
-      avgXpuStr = (xpuSum / nodeCount).toFixed(1) + '%';
-      avgMemStr = (memSum / nodeCount).toFixed(1) + '%';
-    }
+    if (xpuNodeCount > 0) avgXpuStr = (xpuSum / xpuNodeCount).toFixed(1) + '%';
+    if (memNodeCount > 0) avgMemStr = (memSum / memNodeCount).toFixed(1) + '%';
   }
 
   let busyNodes = 0, freeNodes = 0, busyCards = 0, freeCards = 0;
@@ -880,11 +748,11 @@ function renderStats() {
     else busyNodes++;
     if (node.hasActiveLock) lockedNodes++;
     for (let c = 0; c < 8; c++) {
-      if (node.hasMonqueryData) {
+      if (node.hasCardMonqueryData) {
         const memUtil = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][effectiveIdx] : 0;
         const util = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][effectiveIdx] : 0;
         if (memUtil >= 10 || util >= 10) busyCards++; else freeCards++;
-      } else {
+      } else if (!node.hasMonqueryData) {
         // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
         if (node.hasActiveLock) busyCards++; else freeCards++;
       }
@@ -929,6 +797,13 @@ function renderStatusBar(status) {
   const hasLockBot = status.lockBot.ok;
   const hasMonquery = status.monquery.ok;
   const timeStr = new Date(status.lastUpdated).toLocaleTimeString('zh-CN');
+  const phaseTextMap = {
+    lockbot: '锁状态',
+    node: '整机监控',
+    cards: '卡级加载中',
+    complete: '已完成',
+  };
+  const phaseText = phaseTextMap[status.monquery.phase || currentLoadPhase] || '';
 
   let tagCls = '', tagText = '';
   if (!hasLockBot) {
@@ -941,19 +816,64 @@ function renderStatusBar(status) {
 
   mini.innerHTML = `
     <span class="status-tag ${tagCls}">${tagText}</span>
-    <span class="status-time-mini">${timeStr}</span>
+    <span class="status-time-mini">${timeStr}${phaseText ? ' · ' + phaseText : ''}</span>
     <span class="status-retry" id="status-refresh-btn" title="刷新">&#x21bb;</span>
   `;
 }
 
 // ---- Average View: Chart Drawing ----
 
-function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yTicks, cutoffSlot) {
+/**
+ * 按 window.devicePixelRatio 提升 canvas backing store 分辨率，
+ * 同时应用 setTransform(dpr,0,0,dpr,0,0)。返回值仍是 CSS 单位的宽高，
+ * 这样下游所有基于 AVG_MARGIN 等常量计算的几何参数无须改写即可正常工作。
+ */
+function avgSetupHiDPI(canvas, wrap) {
+  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+  const w = wrap.clientWidth  || wrap.offsetWidth  || 600;
+  const h = wrap.clientHeight || wrap.offsetHeight || 310;
+  canvas.width  = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w, h };
+}
+
+/**
+ * 计算 arr[i], i ∈ [0..end] 的算术平均值。
+ * 区间总和 < 极小阈值视为无有效样本返回 null，
+ * 调用方据此决定是否绘制对应平均水平线。
+ */
+function _meanSlotOf(arr, endInclusive) {
+  if (!arr) return null;
+  const n = Math.min(endInclusive + 1, SLOT_COUNT);
+  if (n <= 0) return null;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const v = Number(arr[i]);
+    if (!isNaN(v)) s += v;
+  }
+  return s < 1e-6 ? null : s / n;
+}
+
+function _peakSlotOf(arr, endInclusive) {
+  if (!arr) return null;
+  const n = Math.min(endInclusive + 1, SLOT_COUNT);
+  if (n <= 0) return null;
+  let peak = null;
+  for (let i = 0; i < n; i++) {
+    const v = Number(arr[i]);
+    if (!Number.isFinite(v)) continue;
+    if (!peak || v > peak.value) peak = { slot: i, value: v };
+  }
+  return peak && peak.value >= 1e-6 ? peak : null;
+}
+
+function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yTicks, cutoffSlot, todayAvgColor, yestAvgColor) {
   const canvas = document.getElementById(canvasId);
   const wrap = canvas.parentElement;
+  const { w, h } = avgSetupHiDPI(canvas, wrap);
   const ctx = canvas.getContext('2d');
-  const w = wrap.clientWidth, h = wrap.clientHeight;
-  canvas.width = w; canvas.height = h;
 
   const plotW = w - AVG_MARGIN.left - AVG_MARGIN.right;
   const plotH = h - AVG_MARGIN.top - AVG_MARGIN.bottom;
@@ -975,19 +895,19 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
 
   // Y axis
   ctx.save();
-  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left, AVG_MARGIN.top); ctx.lineTo(AVG_MARGIN.left, AVG_MARGIN.top + plotH); ctx.stroke();
   ctx.restore();
 
   // X axis
   ctx.save();
-  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left, AVG_MARGIN.top + plotH); ctx.lineTo(w - AVG_MARGIN.right, AVG_MARGIN.top + plotH); ctx.stroke();
   ctx.restore();
 
   // X axis labels
   ctx.save();
-  ctx.fillStyle = '#1e293b';
+  ctx.fillStyle = '#000000';
   ctx.font = '11px "SF Mono","JetBrains Mono",monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   for (let i = 0; i < SLOT_COUNT; i += 24) {
@@ -1002,11 +922,11 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
   yTicks.forEach(v => {
     const y = AVG_MARGIN.top + (1 - v / yMax) * plotH;
     const isExtreme = (v === 0 || v === yMax);
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = '#000000';
     ctx.font = (isExtreme ? 'bold ' : '') + '11px "SF Mono","JetBrains Mono",monospace';
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText(v + '%', AVG_MARGIN.left - 7, y);
-    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(AVG_MARGIN.left - 4, y); ctx.lineTo(AVG_MARGIN.left, y); ctx.stroke();
   });
   ctx.restore();
@@ -1039,20 +959,101 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
   ctx.stroke();
+
+  // ---- 平均参考线与峰值标注（仍在 clip 保护内，早于快照捕获） ----
+  const todayMean = _meanSlotOf(todayData, cutoffSlot);
+  const yestMean  = yestData ? _meanSlotOf(yestData, SLOT_COUNT - 1) : null;
+  const todayPeak = _peakSlotOf(todayData, maxSlot);
+  const yestPeak  = yestData ? _peakSlotOf(yestData, SLOT_COUNT - 1) : null;
+  const _drawAvgLine = (val, strokeStyle, labelText, dashed) => {
+    if (val == null || val < 0 || val > yMax * 1.05) return;
+    const yy = AVG_MARGIN.top + Math.min(plotH, (1 - val / yMax) * plotH);
+    const x1 = AVG_MARGIN.left;
+    const x2 = w - AVG_MARGIN.right;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash(dashed ? [6, 5] : []);
+    ctx.beginPath();
+    ctx.moveTo(x1, yy);
+    ctx.lineTo(x2, yy);
+    ctx.stroke();
+    // 紧贴右轴内侧标注数值，与水平线同色直接关联无需图例查找
+    if (labelText) {
+      ctx.setLineDash([]);
+      ctx.fillStyle = strokeStyle;
+      ctx.font = '700 10px "SF Mono","JetBrains Mono",monospace';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+      // 轻微背景描边防止压在主曲线上时不可读
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.strokeText(labelText, x2 - 4, yy - 2);
+      ctx.fillText(labelText, x2 - 4, yy - 2);
+    }
+    ctx.restore();
+  };
+  _drawAvgLine(todayMean, todayAvgColor, null, false);
+  if (yestMean != null)
+    _drawAvgLine(yestMean, yestAvgColor, null, true);
+
+  const _drawPeak = (peak, peakColor, labelOffset) => {
+    if (!peak) return;
+    const clampedValue = Math.max(0, Math.min(yMax, peak.value));
+    const px = AVG_MARGIN.left + (peak.slot / (SLOT_COUNT - 1)) * plotW;
+    const py = AVG_MARGIN.top + (1 - clampedValue / yMax) * plotH;
+    const nearTop = py < AVG_MARGIN.top + 16;
+    const textY = py + (nearTop ? 18 : -10) + labelOffset;
+    const textX = Math.max(AVG_MARGIN.left + 22, Math.min(w - AVG_MARGIN.right - 22, px));
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = peakColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = peakColor;
+    ctx.font = '700 10px "SF Mono","JetBrains Mono",monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+    const text = peak.value.toFixed(1) + '%';
+    ctx.strokeText(text, textX, textY);
+    ctx.fillStyle = peakColor;
+    ctx.fillText(text, textX, textY);
+    ctx.restore();
+  };
+  const closePeaks = todayPeak && yestPeak &&
+    Math.abs(todayPeak.slot - yestPeak.slot) < 8 &&
+    Math.abs(todayPeak.value - yestPeak.value) < yMax * 0.08;
+  _drawPeak(yestPeak, ghostColor, closePeaks ? 12 : 0);
+  _drawPeak(todayPeak, color, 0);
+
+  // 把均值和峰值挂到 canvas 元素上供后续 hover tooltip 扩展使用
+  canvas._avgtodayMean = todayMean;
+  canvas._avgyestMean  = yestMean;
+  canvas._avgtodayPeak = todayPeak;
+  canvas._avgyestPeak  = yestPeak;
+
   ctx.restore();
 
   // ---- 图例（坐标轴区域左上角） ----
   const lx = AVG_MARGIN.left + 8, ly = AVG_MARGIN.top + 6;
-  const items = [{ color, dash: false, label: '今日' }];
-  if (yestData) items.push({ color: ghostColor, dash: true, label: '昨日' });
-  const lw = items.length === 2 ? 90 : 50, lh = items.length === 2 ? 36 : 22;
+  const items = [
+    { color, dash: false, label: '今日' },
+    { color: todayAvgColor, dash: false, label: '今日均值' }
+  ];
+  if (yestData) {
+    items.push({ color: ghostColor, dash: true, label: '昨日' });
+    items.push({ color: yestAvgColor, dash: true, label: '昨日均值' });
+  }
+  const lw = yestData ? 104 : 78, lh = 12 + items.length * 14;
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.fill();
   ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = .5;
   ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.stroke();
   items.forEach((it, i) => {
     const iy = ly + 6 + i * 14;
-    ctx.strokeStyle = it.color; ctx.lineWidth = 2;
+    ctx.strokeStyle = it.color; ctx.lineWidth = it.label.includes('均值') ? 1.4 : 2;
     ctx.setLineDash(it.dash ? [4, 3] : []);
     ctx.beginPath(); ctx.moveTo(lx + 6, iy + 4); ctx.lineTo(lx + 26, iy + 4); ctx.stroke();
     ctx.setLineDash([]);
@@ -1076,13 +1077,22 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
 
 function avgDrawAllCharts() {
   if (!avgTodayXpuMA.length) return;
-  avgDrawChart('avg-xpu-chart', avgTodayXpuMA, avgYestXpuMA, '#7c3aed', 'rgba(124,58,237,0.45)', 35, XPU_TICKS, avgCutoffSlot);
-  avgDrawChart('avg-mem-chart', avgTodayMemMA, avgYestMemMA, '#ea580c', 'rgba(234,88,12,0.45)', 70, MEM_TICKS, avgCutoffSlot);
+  avgDrawChart('avg-xpu-chart', avgTodayXpuMA, avgYestXpuMA,
+               '#7c3aed', 'rgba(124,58,237,0.45)', 35, XPU_TICKS, avgCutoffSlot,
+               '#dc2626', '#dc2626');
+  avgDrawChart('avg-mem-chart', avgTodayMemMA, avgYestMemMA,
+               '#ea580c', 'rgba(234,88,12,0.45)', 70, MEM_TICKS, avgCutoffSlot,
+               '#dc2626', '#dc2626');
 }
 
 function avgRestoreSnapshot(canvas) {
   if (!canvas._avgsnapshot) return;
-  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(canvas._avgsnapshot, 0, 0);
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);            // 临时切回原始物理像素模式
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(canvas._avgsnapshot, 0, 0);      // 快照天然等于 backing store 大小正好铺满
+  ctx.restore();                                  // 还原之前活动的 scale(dpr,dpr) 给上层调用方续用
 }
 
 let avgHoverBound = { 'avg-xpu-chart': false, 'avg-mem-chart': false };
@@ -1126,7 +1136,24 @@ function avgBindHover(canvasId) {
     let html = `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">${timeStr}</div>`;
     layers.forEach(l => {
       const tc = l.tipColor || l.color;
-      html += `<div style="display:flex;align-items:center;gap:6px;margin:1px 0;"><span style="width:7px;height:7px;border-radius:50%;background:${tc};flex-shrink:0;"></span><span style="font-size:10px;color:#cbd5e1;">${l.label}</span><span style="font-weight:600;color:${tc};">${l.data[ci].toFixed(1)}%</span></div>`;
+      html += `<div style="display:grid;grid-template-columns:12px 48px 48px;align-items:center;gap:6px;margin:1px 0;"><span style="width:7px;height:7px;border-radius:50%;background:${tc};justify-self:center;"></span><span style="font-size:10px;color:#cbd5e1;">${l.label}</span><span style="font-weight:600;color:${tc};text-align:right;font-variant-numeric:tabular-nums;">${l.data[ci].toFixed(1)}%</span></div>`;
+    });
+    const avgRows = [
+      { label: '今日均值', value: canvas._avgtodayMean, dash: false },
+      { label: '昨日均值', value: canvas._avgyestMean, dash: true }
+    ].filter(row => row.value != null);
+    avgRows.forEach(row => {
+      const line = row.dash
+        ? 'repeating-linear-gradient(90deg,#dc2626 0,#dc2626 5px,transparent 5px,transparent 9px)'
+        : '#dc2626';
+      html += `<div style="display:grid;grid-template-columns:12px 48px 48px;align-items:center;gap:6px;margin:1px 0;"><span style="width:12px;height:2px;background:${line};justify-self:center;"></span><span style="font-size:10px;color:#cbd5e1;">${row.label}</span><span style="font-weight:600;color:#dc2626;text-align:right;font-variant-numeric:tabular-nums;">${row.value.toFixed(1)}%</span></div>`;
+    });
+    const peakRows = [
+      { label: '今日峰值', value: canvas._avgtodayPeak, color: layers[0]?.color || '#7c3aed' },
+      { label: '昨日峰值', value: canvas._avgyestPeak, color: layers[1]?.tipColor || layers[0]?.color || '#7c3aed' }
+    ].filter(row => row.value != null);
+    peakRows.forEach(row => {
+      html += `<div style="display:grid;grid-template-columns:12px 48px 48px;align-items:center;gap:6px;margin:1px 0;"><span style="width:7px;height:7px;border-radius:50%;border:2px solid ${row.color};background:#fff;justify-self:center;box-sizing:border-box;"></span><span style="font-size:10px;color:#cbd5e1;">${row.label}</span><span style="font-weight:600;color:${row.color};text-align:right;font-variant-numeric:tabular-nums;">${row.value.value.toFixed(1)}%</span></div>`;
     });
     tooltip.innerHTML = html;
     tooltip.style.display = 'block';
@@ -1315,12 +1342,13 @@ function renderList() {
       ? `<span class="badge badge-${node.status}">${node.status}</span>`
       : `<span class="badge badge-NODATA">无数据</span>`;
     const hasData = node.hasMonqueryData !== false;
-    const showUtil = hasData
+    const hasNodeData = node.hasNodeMonqueryData || hasData;
+    const showUtil = hasNodeData
       ? `<span class="util-value ${utilClass(node.currentUtil, true)}">${node.currentUtil.toFixed(2)}%</span>`
       : `<span class="util-value nodata">--</span>`;
-    const memShow = hasData
+    const memShow = node.hasMemMonqueryData
       ? `<span class="util-value ${utilClass(node.currentMemUtil || 0, true)}">${(node.currentMemUtil || 0).toFixed(2)}%</span>`
-      : `<span class="util-value nodata">--</span>`;
+      : `<span class="util-value nodata">${hasData ? '加载中' : '--'}</span>`;
 
     // 异常标记：僵尸锁检测
     let warnBadge = '';
@@ -1360,17 +1388,26 @@ function renderList() {
     `;
     container.appendChild(row);
     drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgUtil, '#4f46e5');
-    drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgMemUtil, '#ea580c', true);
+    if (node.hasMemMonqueryData) {
+      drawUtilLine(row.querySelector('.timeline-container canvas'), node.avgMemUtil, '#ea580c', true);
+    }
     captureLayerSnapshot(row.querySelector('.timeline-container canvas'));
 
     if (expandedNodes.has(node.name)) {
+      if (node.hasMonqueryData && !node.hasCardMonqueryData) {
+        const loadingRow = document.createElement('div');
+        loadingRow.className = 'card-loading';
+        loadingRow.textContent = '卡级数据加载中…';
+        container.appendChild(loadingRow);
+        return;
+      }
       for (let c = 0; c < 8; c++) {
         const cardRow = document.createElement('div');
         cardRow.className = 'card-row';
         const effectiveIdx = Math.max(0, nowIdx - 1);
         const cu = (node.cardUtils && node.cardUtils[c]) ? node.cardUtils[c][effectiveIdx] : 0;
         const cm = (node.cardMemUtils && node.cardMemUtils[c]) ? node.cardMemUtils[c][effectiveIdx] : 0;
-        const cardBusy = node.hasMonqueryData
+        const cardBusy = node.hasCardMonqueryData
           ? (cm >= 10 || cu >= 10)
           : (node.cardHasActiveLock && node.cardHasActiveLock[c]);
         const lockMark = (node.cardOccupations && node.cardOccupations[c] && node.cardOccupations[c].length)
@@ -1399,7 +1436,9 @@ function renderList() {
         container.appendChild(cardTimeline);
         const cardCanvas = cardTimeline.querySelector('canvas');
         drawUtilLine(cardCanvas, cardUtil, '#4f46e5');
-        drawUtilLine(cardCanvas, cardMem, '#ea580c', true);
+        if (node.hasMemMonqueryData) {
+          drawUtilLine(cardCanvas, cardMem, '#ea580c', true);
+        }
         captureLayerSnapshot(cardCanvas);
       }
     }
@@ -1426,124 +1465,8 @@ function addGlobalNowLine(container) {
   container.appendChild(line);
 }
 
-/** 绘制时间轴背景微网格 — 竖向每 12 槽（1h），横向每 25% */
-function drawTimelineGrid(ctx, w, h) {
-  ctx.save();
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 0.5;
-  // 竖线 — 每 12 槽 = 1 小时
-  for (let i = 0; i <= 288; i += 12) {
-    const x = (i / 288) * w;
-    ctx.beginPath();
-    ctx.setLineDash([1, 3]);
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, h);
-    ctx.stroke();
-  }
-  // 横线 — 25% / 50% / 75%
-  for (const pct of [0.25, 0.5, 0.75]) {
-    const y = h - (pct * h);
-    ctx.beginPath();
-    ctx.setLineDash([1, 3]);
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-function drawUtilLine(canvas, data, color, skipClear = false) {
-  const ctx = canvas.getContext('2d');
-  const w = canvas.parentElement.clientWidth || 600;
-  const h = canvas.parentElement.clientHeight || 40;
-  if (!skipClear) {
-    canvas.width = w; canvas.height = h;
-    canvas._layers = [];
-    canvas._snapshot = null;
-    // 绘制背景微网格（签名元素）
-    drawTimelineGrid(ctx, w, h);
-  }
-  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
-  data.forEach((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = (h - 2) - (v / 100) * (h - 4);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  // 存储多层数据供 hover 使用
-  if (!canvas._layers) canvas._layers = [];
-  canvas._layers.push({ data, color, label: color === '#ea580c' ? '显存' : 'XPU' });
-}
-
-/** 捕获当前 canvas 为快照，Hover 时避免完整重绘 */
-function captureLayerSnapshot(canvas) {
-  const img = new Image();
-  img.src = canvas.toDataURL();
-  canvas._snapshot = img;
-}
-
-/** 从快照恢复背景图层 */
-function restoreSnapshot(canvas) {
-  if (!canvas._snapshot) return drawAllLayers(canvas);
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(canvas._snapshot, 0, 0);
-}
-
-function drawAllLayers(canvas) {
-  const layers = canvas._layers || [];
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  layers.forEach(layer => {
-    ctx.strokeStyle = layer.color; ctx.lineWidth = 1.5; ctx.beginPath();
-    layer.data.forEach((v, i) => {
-      const px = (i / (layer.data.length - 1)) * w;
-      const py = (h - 2) - (v / 100) * (h - 4);
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-  });
-}
-
 function bindCanvasHover() {
-  document.querySelectorAll('.util-line').forEach(canvas => {
-    canvas.addEventListener('mousemove', e => {
-      const layers = canvas._layers;
-      if (!layers || !layers.length) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const dataLen = layers[0].data.length;
-      const idx = Math.round(x / rect.width * (dataLen - 1));
-      const ci = Math.max(0, Math.min(idx, dataLen - 1));
-      const w = canvas.width, h = canvas.height;
-
-      // 从快照恢复背景，无需逐路径重绘
-      restoreSnapshot(canvas);
-
-      // 在每个图层上画圆点
-      const ctx = canvas.getContext('2d');
-      layers.forEach(layer => {
-        const val = layer.data[ci];
-        const dotX = (ci / (dataLen - 1)) * w;
-        const dotY = (h - 2) - (val / 100) * (h - 4);
-        ctx.beginPath(); ctx.arc(dotX, dotY, 3, 0, Math.PI * 2); ctx.fillStyle = layer.color; ctx.fill();
-      });
-
-      // tooltip 显示所有层的值
-      const timeH = Math.floor(ci / 12), timeM = (ci % 12) * 5;
-      const vals = layers.map(l => `${l.label}: ${l.data[ci].toFixed(2)}%`).join('  |  ');
-      tooltip.textContent = `${timeH}:${String(timeM).padStart(2, '0')}  ${vals}`;
-      tooltip.style.display = 'block';
-      tooltip.style.left = e.pageX + 10 + 'px'; tooltip.style.top = e.pageY - 30 + 'px';
-    });
-    canvas.addEventListener('mouseleave', () => {
-      tooltip.style.display = 'none';
-      if (!canvas._layers || !canvas._layers.length) return;
-      restoreSnapshot(canvas);
-    });
-  });
+  bindTimelineCanvasHover(document.querySelectorAll('.util-line'), tooltip);
 }
 
 function bindTooltips() {

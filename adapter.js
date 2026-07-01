@@ -161,6 +161,33 @@ function indexMonqueryByName(data) {
   return map;
 }
 
+export function mergeMonqueryData(existing = [], incoming = []) {
+  const byNs = new Map();
+  for (const entry of existing || []) {
+    if (!entry || !entry.NameSpace) continue;
+    byNs.set(entry.NameSpace, {
+      ...entry,
+      Items: { ...(entry.Items || {}) },
+    });
+  }
+  for (const entry of incoming || []) {
+    if (!entry || !entry.NameSpace) continue;
+    const prev = byNs.get(entry.NameSpace);
+    if (!prev) {
+      byNs.set(entry.NameSpace, {
+        ...entry,
+        Items: { ...(entry.Items || {}) },
+      });
+    } else {
+      prev.Items = {
+        ...(prev.Items || {}),
+        ...(entry.Items || {}),
+      };
+    }
+  }
+  return [...byNs.values()];
+}
+
 /**
  * 将历史占用记录按节点名分组并转为 occupation 数组
  * @param {Array} occupancyHistory - [{node_key, user_id, start_time, end_time, duration_seconds, ...}]
@@ -330,6 +357,10 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
     const cardUtils = Array.from({ length: CARD_COUNT }, () => new Array(SLOT_COUNT).fill(0));
     const cardMemUtils = Array.from({ length: CARD_COUNT }, () => new Array(SLOT_COUNT).fill(0));
 
+    const hasNodeMonqueryData = !!nodeItems && Array.isArray(nodeItems['XPU_AVERAGE_UTILIZATION']);
+    let hasCardXpuMonqueryData = false;
+    let hasMemMonqueryData = false;
+
     if (nodeItems) {
       const avgSeries = nodeItems['XPU_AVERAGE_UTILIZATION'];
       if (avgSeries) avgUtil = fillUtilArray(avgSeries);
@@ -339,37 +370,49 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
         const memKey = `XPU${c}_MEM_UTILIZATION`;
         const utilSeries = nodeItems[utilKey];
         const memSeries = nodeItems[memKey];
-        if (utilSeries) cardUtils[c] = fillUtilArray(utilSeries);
-        if (memSeries) cardMemUtils[c] = fillUtilArray(memSeries);
+        if (Array.isArray(utilSeries)) {
+          hasCardXpuMonqueryData = true;
+          cardUtils[c] = fillUtilArray(utilSeries);
+        }
+        if (Array.isArray(memSeries)) {
+          hasMemMonqueryData = true;
+          cardMemUtils[c] = fillUtilArray(memSeries);
+        }
       }
 
       // 计算 8 卡显存平均利用率（逐槽取平均）
-      for (let i = 0; i < SLOT_COUNT; i++) {
-        let sum = 0;
-        for (let c = 0; c < CARD_COUNT; c++) sum += cardMemUtils[c][i];
-        avgMemUtil[i] = sum / CARD_COUNT;
+      if (hasMemMonqueryData) {
+        for (let i = 0; i < SLOT_COUNT; i++) {
+          let sum = 0;
+          for (let c = 0; c < CARD_COUNT; c++) sum += cardMemUtils[c][i];
+          avgMemUtil[i] = sum / CARD_COUNT;
+        }
       }
     }
 
-    // 检查 Monquery 数据是否实质性存在（namespace 存在但指标全 null 视为无数据）
-    const hasMonqueryData = !!nodeItems && nodeItems['XPU_AVERAGE_UTILIZATION'] !== null;
+    const hasCardMonqueryData = hasCardXpuMonqueryData || hasMemMonqueryData;
+    const hasMonqueryData = hasNodeMonqueryData || hasCardMonqueryData;
 
     // 用最新已完成槽代替当前进行中槽（Monquery 数据有 0-5min 延迟，nowIdx 可能指向未填充的槽）
     const effectiveIdx = Math.max(0, nowIdx - 1);
     const currentUtil = avgUtil[effectiveIdx];
     const currentMemUtil = avgMemUtil[effectiveIdx];
 
-    // ---- 逐卡判定状态：全空闲 FREE / 全占用 BUSY / 部分占用 PARTIAL ----
+    // ---- 状态判定：卡级指标优先；整机级指标为加载卡级前的临时状态 ----
     let busyCards = 0;
-    for (let c = 0; c < CARD_COUNT; c++) {
-      const cm = cardMemUtils[c] ? cardMemUtils[c][effectiveIdx] : 0;
-      const cu = cardUtils[c] ? cardUtils[c][effectiveIdx] : 0;
-      if (cm >= 10 || cu >= 10) busyCards++;
-    }
-    let nodeStatus = busyCards === 0 ? 'FREE' : busyCards === CARD_COUNT ? 'BUSY' : 'PARTIAL';
-    // bdc 等无 Monquery 数据的节点，按 Lock Bot 锁判定
-    if (!nodeItems) {
-      nodeStatus = hasActiveLock ? 'BUSY' : 'FREE';
+    let statusSource = 'lockbot';
+    let nodeStatus = hasActiveLock ? 'BUSY' : 'FREE';
+    if (hasCardMonqueryData) {
+      for (let c = 0; c < CARD_COUNT; c++) {
+        const cm = cardMemUtils[c] ? cardMemUtils[c][effectiveIdx] : 0;
+        const cu = cardUtils[c] ? cardUtils[c][effectiveIdx] : 0;
+        if (cm >= 10 || cu >= 10) busyCards++;
+      }
+      nodeStatus = busyCards === 0 ? 'FREE' : busyCards === CARD_COUNT ? 'BUSY' : 'PARTIAL';
+      statusSource = 'card-metrics';
+    } else if (hasNodeMonqueryData) {
+      nodeStatus = currentUtil >= 10 ? 'BUSY' : 'FREE';
+      statusSource = 'node-metric';
     }
 
     // ---- 合并重叠的占用区间（避免时间线上视觉堆叠） ----
@@ -379,9 +422,9 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
     }
 
     // ---- 从显存数据推导每张卡的实际占用时段 ----
-    const cardMemOccupations = Array.from({ length: CARD_COUNT }, (_, c) =>
-      deriveMemOccupations(cardMemUtils[c])
-    );
+    const cardMemOccupations = hasMemMonqueryData
+      ? Array.from({ length: CARD_COUNT }, (_, c) => deriveMemOccupations(cardMemUtils[c]))
+      : Array.from({ length: CARD_COUNT }, () => []);
 
     nodes.push({
       name,
@@ -397,6 +440,10 @@ export function adaptNodeData(lockBotState, monqueryData, nowIdx, botType, occup
       cardMemOccupations,
       botType,
       hasMonqueryData,
+      hasNodeMonqueryData,
+      hasCardMonqueryData,
+      hasMemMonqueryData,
+      statusSource,
       hasActiveLock,
       cardCount,
       cardHasActiveLock,

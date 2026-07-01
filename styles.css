@@ -1,0 +1,169 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #eef1f6; color: #1e293b; padding: 20px; }
+h1 { font-size: 22px; margin-bottom: 20px; color: #1e293b; font-weight: 700; }
+
+/* Login */
+.login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
+.login-card { background: #fff; border-radius: 12px; padding: 32px 28px; width: 340px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04); }
+.login-card h2 { font-size: 17px; margin-bottom: 20px; text-align: center; color: #64748b; }
+.login-card input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; transition: border-color .2s; }
+.login-card input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+.login-card button { width: 100%; padding: 10px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; transition: background .2s; }
+.login-card button:hover { background: #4338ca; }
+.login-card button:disabled { background: #a5b4fc; cursor: not-allowed; }
+.login-error { color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; }
+.login-hint { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px; }
+
+/* Stats */
+.stats-bar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.stats-bar-row { display: flex; gap: 12px; justify-content: center; }
+.stat-card { background: #fff; border-radius: 10px; padding: 12px 14px; flex: 1 1 220px; max-width: 300px; display: flex; align-items: baseline; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03); position: relative; overflow: visible; }
+.stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 2px 0 0 2px; }
+.stat-card.total::before { background: #4f46e5; }
+.stat-card.free::before { background: #16a34a; }
+.stat-card.busy::before { background: #dc2626; }
+.stat-card.locked::before { background: #d97706; }
+.stat-card.device-free::before { background: #0ea5e9; }
+.stat-card.xpu-avg::before { background: #7c3aed; }
+.stat-card.mem-avg::before { background: #0891b2; }
+.stat-card .label { font-size: 11px; color: #64748b; letter-spacing: .3px; flex-shrink: 0; white-space: nowrap; }
+.stat-card .value { font-size: 21px; font-weight: 700; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; margin-left: auto; }
+.stat-card .value.total { color: #4f46e5; }
+.stat-card .value.free { color: #16a34a; }
+.stat-card .value.busy { color: #dc2626; }
+.stat-card .value.locked { color: #d97706; }
+.stat-card .value.device-free { color: #0ea5e9; }
+.stat-card .value.xpu-avg { color: #7c3aed; }
+.stat-card .value.mem-avg { color: #0891b2; }
+.stat-card .value.pct { font-size: 17px; }
+
+.stat-card .tip-icon { position: absolute; top: 6px; right: 8px; width: 18px; height: 18px; border-radius: 50%; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; transition: background .15s, color .15s; line-height: 1; font-family: inherit; }
+.stat-card.xpu-avg, .stat-card.mem-avg { padding-right: 40px; }
+.stat-card .tip-icon:hover { background: #4f46e5; color: #fff; }
+.stat-card .tip-popup { display: none; position: absolute; top: 32px; right: 4px; background: #1e293b; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5; white-space: normal; width: 220px; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.stat-card .tip-popup.show { display: block; }
+
+/* Filters */
+.filters { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.filters label { font-size: 12px; color: #94a3b8; font-weight: 500; }
+.search-input { width: 150px; padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; outline: none; }
+.search-input:focus { border-color: #4f46e5; }
+.status-btn { padding: 3px 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 12px; cursor: pointer; background: #fff; color: #64748b; transition: all .15s; user-select: none; }
+.status-btn:hover { border-color: #cbd5e1; }
+.status-btn.active { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; font-weight: 500; }
+
+/* Nodes */
+.node-row { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.03), 0 2px 6px rgba(0,0,0,.02); transition: box-shadow .2s; }
+.node-row:hover { box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06); }
+.node-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.node-name { font-weight: 600; font-size: 15px; min-width: 80px; color: #1e293b; }
+	.expand-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; border-radius: 6px; border: none; font-size: 11px; font-weight: 600; color: #fff; background: #4f46e5; cursor: pointer; user-select: none; margin-left: 6px; transition: all .2s; line-height: 1.6; }
+	.expand-toggle:hover { background: #4338ca; }
+	.type-tag { font-size: 9px; font-weight: 600; letter-spacing: .5px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+	.type-tag-DEVICE { background: #eef2ff; color: #4f46e5; }
+	.type-tag-NODE { background: #f1f5f9; color: #64748b; }
+.node-stats { font-size: 12px; color: #64748b; margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.node-stats .util-value { font-weight: 700; font-size: 14px; margin-left: 4px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.node-stats .util-value.high { color: #dc2626; }
+.node-stats .util-value.mid { color: #d97706; }
+.node-stats .util-value.low { color: #16a34a; }
+.node-stats .util-value.nodata { color: #94a3b8; font-weight: 400; font-size: 12px; font-family: inherit; }
+.badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge-FREE { background: #dcfce7; color: #16a34a; }
+.badge-PARTIAL { background: #fef3c7; color: #d97706; }
+.badge-BUSY { background: #fee2e2; color: #dc2626; }
+.timeline-container { position: relative; height: 40px; background: #f8fafc; border-radius: 6px; overflow: visible; border: 1px solid #e2e8f0; }
+.time-labels { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 2px; padding: 0 2px; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.occupy-block { position: absolute; top: 0; height: 100%; background: rgba(220, 38, 38, .15); border-left: 1px solid rgba(220,38,38,.3); border-right: 1px solid rgba(220,38,38,.3); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.occupy-block .occupy-user { font-size: 10px; color: #b91c1c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.occupy-block:hover { background: rgba(220, 38, 38, .28); }
+.tooltip { position: absolute; background: #1e293b; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; white-space: nowrap; z-index: 100; display: none; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.util-line { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+/* Status bar */
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 14px; border-radius: 8px; font-size: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.status-bar.caution { background: #fffbeb; border-color: #fde68a; }
+.status-bar.error { background: #fef2f2; border-color: #fecaca; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; flex-shrink: 0; animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.status-bar.caution .status-dot { background: #d97706; }
+.status-bar.error .status-dot { background: #dc2626; }
+.status-text { color: #475569; }
+.status-timestamp { color: #d97706; font-size: 12px; font-weight: 600; margin-left: auto; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.status-retry { cursor: pointer; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 10px; font-size: 11px; background: #fff; color: #64748b; transition: all .15s; }
+.status-retry:hover { border-color: #4f46e5; color: #4f46e5; }
+
+/* View Bar (type toggles + legend + status) */
+.view-bar { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; flex-wrap: wrap; }
+.type-toggles { display: flex; gap: 4px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
+.type-btn { padding: 4px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; background: transparent; color: #64748b; font-weight: 500; transition: all .15s; user-select: none; }
+.type-btn:hover { color: #1e293b; }
+.type-btn.active { background: #4f46e5; color: #fff; }
+.legend-items { display: flex; gap: 16px; align-items: center; }
+
+/* Average View */
+#average-view { margin-bottom: 16px; }
+.avg-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; font-size: 12px; color: #64748b; }
+.avg-controls label { font-weight: 500; }
+.avg-controls input[type="date"] { padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: "SF Mono","JetBrains Mono",monospace; color: #1e293b; background: #fff; outline: none; width: 120px; }
+.avg-controls input[type="date"]:focus { border-color: #4f46e5; }
+.window-toggles { display: flex; gap: 2px; background: #fff; border-radius: 8px; padding: 3px; border: 1px solid #e2e8f0; }
+.win-btn { padding: 3px 12px; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; background: transparent; color: #94a3b8; font-weight: 500; font-family: "SF Mono","JetBrains Mono",monospace; transition: all .15s; user-select: none; }
+.win-btn:hover { color: #1e293b; }
+.win-btn.active { background: #e2e8f0; color: #1e293b; }
+.charts-row { display: flex; flex-direction: column; gap: 16px; }
+.chart-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+.chart-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1e293b; text-align: center; }
+.chart-legend { display: flex; align-items: center; gap: 16px; font-size: 11px; margin-bottom: 8px; color: #64748b; }
+.chart-legend .legend-item { display: flex; align-items: center; gap: 6px; }
+.chart-legend .legend-line-solid { width: 16px; height: 2px; border-radius: 1px; }
+.chart-legend .legend-line-dash { width: 16px; height: 2px; border: none; border-radius: 1px; }
+.chart-wrap { position: relative; height: 310px; }
+.chart-wrap canvas { width: 100%; height: 100%; }
+
+/* Toast */
+.toast { position: fixed; top: 16px; right: 16px; background: #1e293b; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.toast.show { opacity: 1; }
+
+/* Error Overlay */
+.error-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.error-overlay.hidden { display: none; }
+.error-card { background: #fff; border-radius: 14px; padding: 40px 32px; width: 420px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.15); }
+.error-card .error-icon { font-size: 44px; margin-bottom: 16px; }
+.error-card .error-title { font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+.error-card .error-detail { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 20px; }
+.error-card .error-meta { font-size: 11px; color: #94a3b8; margin-bottom: 18px; }
+.error-card .error-meta span { margin: 0 8px; }
+.error-card .error-actions { display: flex; gap: 10px; justify-content: center; }
+.error-card .error-actions button { padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s; }
+.error-card .error-actions button.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.error-card .error-actions button.primary:hover { background: #4338ca; }
+.error-card .error-actions button:not(.primary):hover { border-color: #4f46e5; color: #4f46e5; }
+
+/* Badge: NODATA */
+.badge-NODATA { background: #f1f5f9; color: #94a3b8; }
+
+/* 异常标记：僵尸锁 */
+.badge-warn-zombie { background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; cursor: help; }
+
+/* DEVICE 节点内联卡片 */
+.card-row { padding: 4px 10px; font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 12px; border-top: 1px solid #f1f5f9; }
+.card-row .card-name { min-width: 44px; font-weight: 500; }
+.card-row .card-val { font-size: 11px; min-width: 44px; text-align: right; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.card-row .card-lock { font-size: 10px; color: #b91c1c; }
+.card-timeline { padding: 0 10px 2px 56px; position: relative; }
+.card-timeline .timeline-container { height: 24px; }
+.card-loading { padding: 8px 10px 8px 56px; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; }
+
+.legend { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 12px; }
+.status-tag { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 6px; border-radius: 3px; }
+.status-tag-ok { background: #dcfce7; color: #16a34a; }
+.status-tag-err { background: #fee2e2; color: #dc2626; }
+.status-tag-caution { background: #fef3c7; color: #d97706; }
+.status-time-mini { color: #94a3b8; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-line { width: 20px; height: 2px; }
+
+/* Now line - global */
+#node-list { position: relative; }
+.global-now-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(220, 38, 38, .35); z-index: 20; pointer-events: none; }
+.global-now-label { position: absolute; top: -15px; transform: translateX(-50%); font-size: 10px; color: rgba(220, 38, 38, .6); white-space: nowrap; font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace; font-weight: 500; }
