@@ -19,41 +19,284 @@ Supports both standalone Flask deployment and a full platform mode with FastAPI 
 - **State Persistence** — Bot state survives restarts (JSON file)
 - **Bilingual** — English and Chinese UI and bot responses
 
-## Quick Start — Platform Mode (Recommended)
+## Deployment — Linux VM (tmux)
 
-Full management platform with Web UI, multi-bot orchestration, user authentication, and admin panel.
+This guide walks through deploying LockBot on a Linux VM without Docker, using tmux to keep the server running in the background. Suitable for both production and development environments.
 
-1. Install:
+### Prerequisites
+
+- **Python 3.10+** and pip
+- **Node.js 20+** and npm (for building the frontend)
+- **tmux** (for background process management)
+- **git** (to clone the repository)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/DynamicHeart/lockbot.git
+cd lockbot
+```
+
+### 2. Install Python dependencies
+
+```bash
+pip install -e .
+```
+
+If you don't need the frontend, you can add `--no-build-isolation` or install from PyPI:
 
 ```bash
 pip install lockbot
 ```
 
-2. Set environment variables:
+### 3. Build the frontend
 
 ```bash
-export JWT_SECRET="your-jwt-secret"
-export ENCRYPTION_KEY="your-fernet-key"    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-export DEV_MODE="true"                      # dev mode, auto-create admin user
+cd frontend
+npm install
+npm run build
+cd ..
 ```
 
-3. Start:
+This produces static files under `frontend/dist/` which the FastAPI backend serves automatically. The frontend is required for the Web UI; skip this step if you only need the bot API.
+
+### 4. Generate secrets
 
 ```bash
-# Backend
+python3 tools/gen_keys.py
+```
+
+Output example:
+
+```
+ENCRYPTION_KEY=gAAAAABn...
+JWT_SECRET=a1b2c3d4e5f6...
+```
+
+Save both values — you'll use them in the next step.
+
+### 5. Set environment variables
+
+```bash
+export JWT_SECRET="<output-from-gen-keys>"       # required
+export ENCRYPTION_KEY="<output-from-gen-keys>"    # required
+export DATA_DIR="/opt/lockbot/data"               # persistent data, default: /data
+export PYTHONPATH="$(pwd)/python"                 # required when running from source
+export DEV_MODE="true"                            # auto-creates dev users on first start
+```
+
+Key variables explained:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `JWT_SECRET` | Yes | — | Secret key for JWT token signing |
+| `ENCRYPTION_KEY` | Yes | — | Fernet key for encrypting sensitive fields (bot tokens, AES keys) |
+| `DATA_DIR` | No | `/data` | Directory for SQLite DB + bot state files. Should be backed up. |
+| `PYTHONPATH` | Source install | — | Must include the `python/` directory when running from source |
+| `DEV_MODE` | No | `false` | When `true`: auto-creates admin + test users on first startup |
+| `ALLOW_REGISTER` | No | `false` | When `true`: enables public user registration |
+| `DATABASE_URL` | No | `sqlite:///{DATA_DIR}/lockbot.db` | Custom database URL (supports PostgreSQL, MySQL, etc.) |
+| `FRONTEND_DIST` | No | `frontend/dist` (auto-detected) | Path to built frontend static files |
+| `REDIS_URL` | No | (in-memory) | Redis URL for distributed rate limiting |
+
+### 6. Start with tmux
+
+```bash
+tmux new-session -d -s lockbot \
+  "export JWT_SECRET='<your-secret>' \
+   && export ENCRYPTION_KEY='<your-key>' \
+   && export DATA_DIR='/opt/lockbot/data' \
+   && export PYTHONPATH='$(pwd)/python' \
+   && export DEV_MODE='true' \
+   && uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8000 2>&1 | tee /tmp/lockbot.log"
+```
+
+- `--host 0.0.0.0` makes the service accessible from other machines on the network
+- `--port 8000` is the default; change it if the port is already in use
+- `2>&1 | tee /tmp/lockbot.log` writes logs to both the tmux pane and a log file
+- Remove `--reload` for production (auto-restart on code changes is a dev convenience that adds overhead)
+
+### 7. Verify startup
+
+```bash
+sleep 4 && tmux capture-pane -t lockbot -p | tail -20
+```
+
+Look for these log lines indicating a successful start:
+
+```
+Application startup complete.
+```
+
+If you had bots running before the last shutdown, you'll also see:
+
+```
+Auto-recovered bot 1 (my-bot)
+```
+
+Then open `http://<your-vm-ip>:8000` in a browser to access the Web UI.
+
+**Dev mode default users** (`DEV_MODE=true`):
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `admin123` | super_admin |
+| `manager` | `manager` | admin |
+| `user1` | `user1` | user |
+| `user2` | `user2` | user |
+
+> ⚠️ **For production, set `DEV_MODE=false`** after first setup and create a super_admin manually (see step 8). The dev users are intended for testing only.
+
+### 8. Create super_admin (production)
+
+When `DEV_MODE=false`, no users are auto-created. Create the first admin manually:
+
+```bash
+export DATA_DIR="/opt/lockbot/data"
+python3 tools/create_super_admin.py --username admin --email admin@example.com
+```
+
+The script generates a random password — save it and change it after first login:
+
+```
+✓ Super admin created successfully!
+  Username: admin
+  Email:    admin@example.com
+  Password: <auto-generated>
+  ⚠️  Please change the password after first login.
+```
+
+You can also specify a password directly (less secure):
+
+```bash
+python3 tools/create_super_admin.py --username admin --email admin@example.com --password mypassword
+```
+
+### Service Management
+
+**View logs:**
+```bash
+# Follow the log file
+tail -f /tmp/lockbot.log
+
+# View current tmux output
+tmux capture-pane -t lockbot -p | tail -50
+```
+
+**Attach to tmux session (watch live output):**
+```bash
+tmux attach -t lockbot
+# Press Ctrl+B then D to detach (does NOT stop the service)
+```
+
+> ⚠️ **Do NOT press Ctrl+C while attached** — uvicorn is the session's only foreground process; killing it destroys the tmux session. Use the stop command below instead.
+
+**Stop the service:**
+```bash
+tmux kill-session -t lockbot
+```
+
+**Restart after code changes:**
+```bash
+# 1. Stop the old session
+tmux kill-session -t lockbot 2>/dev/null
+
+# 2. Pull latest code
+git pull
+
+# 3. Rebuild frontend (if frontend files changed)
+cd frontend && npm install && npm run build && cd ..
+
+# 4. Start again
+tmux new-session -d -s lockbot \
+  "export JWT_SECRET='<your-secret>' \
+   && export ENCRYPTION_KEY='<your-key>' \
+   && export DATA_DIR='/opt/lockbot/data' \
+   && export PYTHONPATH='$(pwd)/python' \
+   && uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8000 2>&1 | tee /tmp/lockbot.log"
+
+# 5. Verify
+sleep 4 && tmux capture-pane -t lockbot -p | tail -20
+```
+
+**Run on boot (systemd service):**
+
+Create `/etc/systemd/system/lockbot.service`:
+
+```ini
+[Unit]
+Description=LockBot Platform
+After=network.target
+
+[Service]
+Type=simple
+User=lockbot
+WorkingDirectory=/opt/lockbot
+Environment="JWT_SECRET=<your-secret>"
+Environment="ENCRYPTION_KEY=<your-key>"
+Environment="DATA_DIR=/opt/lockbot/data"
+Environment="PYTHONPATH=/opt/lockbot/python"
+Environment="PATH=/home/lockbot/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/lockbot/.local/bin/uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now lockbot
+sudo journalctl -u lockbot -f    # view logs
+```
+
+### Optional: GPU monitoring via SSH
+
+DEVICE bots can display real-time GPU utilization and container names per card when SSH access to GPU nodes is configured.
+
+```bash
+# 1. Generate an SSH key on the lockbot host (if you don't have one)
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+
+# 2. Copy the public key to each GPU node
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@gpu-node-ip
+
+# 3. Verify passwordless login and xpu-smi availability
+ssh -o BatchMode=yes user@gpu-node-ip "which xpu-smi"
+```
+
+Then add each node's IP via the Web UI (Bot Settings → Cluster Configs) or directly in the database. The GPU utilization column in `/query` output will remain blank for any node that doesn't have SSH access.
+
+## Quick Start — Development
+
+For local development with hot-reload:
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Set minimal env vars
+export JWT_SECRET="dev-secret"
+export ENCRYPTION_KEY="dev-key-32-bytes-long!!"
+export DEV_MODE="true"
+
+# Backend (with auto-reload)
 uvicorn lockbot.backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Frontend (another terminal)
+# Frontend dev server (another terminal)
 cd frontend && npm install && npm run dev
 ```
 
-4. Open `http://localhost:8000` in your browser.
+Open `http://localhost:8000` for the full app (frontend served by backend), or use the Vite dev server for hot-module-replacement during frontend development.
 
-### Docker
+## Docker
 
 ```bash
 # 1. Generate ENCRYPTION_KEY and JWT_SECRET
-python tools/gen_keys.py
+python3 tools/gen_keys.py
 
 # 2. Pull pre-built image (or build from source)
 docker pull ghcr.io/dynamicheart/lockbot:latest
@@ -67,7 +310,7 @@ docker run -d --name lockbot -p 8000:8000 \
   ghcr.io/dynamicheart/lockbot:latest
 
 # 4. Create super_admin (password auto-generated and printed)
-docker exec -it lockbot python tools/create_super_admin.py --username admin --email admin@example.com
+docker exec -it lockbot python3 tools/create_super_admin.py --username admin --email admin@example.com
 ```
 
 > **Data persistence**: All data (SQLite DB, bot state files) stored under `/data`. Override with `DATA_DIR` env var.
