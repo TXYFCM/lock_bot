@@ -993,8 +993,6 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
     ctx.restore();
   };
   _drawAvgLine(todayMean, todayAvgColor, null, false);
-  if (yestMean != null)
-    _drawAvgLine(yestMean, yestAvgColor, null, true);
 
   const _drawPeak = (peak, peakColor, labelOffset) => {
     if (!peak) return;
@@ -1003,22 +1001,17 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
     const py = AVG_MARGIN.top + (1 - clampedValue / yMax) * plotH;
     const nearTop = py < AVG_MARGIN.top + 16;
     const textY = py + (nearTop ? 18 : -10) + labelOffset;
-    const textX = Math.max(AVG_MARGIN.left + 22, Math.min(w - AVG_MARGIN.right - 22, px));
+    const textX = Math.max(AVG_MARGIN.left + 42, Math.min(w - AVG_MARGIN.right - 42, px));
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = peakColor;
-    ctx.lineWidth = 2;
-    ctx.stroke();
     ctx.fillStyle = peakColor;
-    ctx.font = '700 10px "SF Mono","JetBrains Mono",monospace';
+    ctx.font = '700 13px "SF Mono","JetBrains Mono",monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.88)';
-    const text = peak.value.toFixed(1) + '%';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeText('★', px, py);
+    ctx.fillText('★', px, py);
+    ctx.font = '700 10px "SF Mono","JetBrains Mono",monospace';
+    const text = `★ 峰值 ${peak.value.toFixed(1)}%`;
     ctx.strokeText(text, textX, textY);
-    ctx.fillStyle = peakColor;
     ctx.fillText(text, textX, textY);
     ctx.restore();
   };
@@ -1042,10 +1035,8 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
     { color, dash: false, label: '今日' },
     { color: todayAvgColor, dash: false, label: '今日均值' }
   ];
-  if (yestData) {
-    items.push({ color: ghostColor, dash: true, label: '昨日' });
-    items.push({ color: yestAvgColor, dash: true, label: '昨日均值' });
-  }
+  if (yestData) items.push({ color: ghostColor, dash: true, label: '昨日' });
+  items.push({ color, star: true, label: '峰值' });
   const lw = yestData ? 104 : 78, lh = 12 + items.length * 14;
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.fill();
@@ -1053,10 +1044,17 @@ function avgDrawChart(canvasId, todayData, yestData, color, ghostColor, yMax, yT
   ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh, 4); ctx.stroke();
   items.forEach((it, i) => {
     const iy = ly + 6 + i * 14;
-    ctx.strokeStyle = it.color; ctx.lineWidth = it.label.includes('均值') ? 1.4 : 2;
-    ctx.setLineDash(it.dash ? [4, 3] : []);
-    ctx.beginPath(); ctx.moveTo(lx + 6, iy + 4); ctx.lineTo(lx + 26, iy + 4); ctx.stroke();
-    ctx.setLineDash([]);
+    if (it.star) {
+      ctx.fillStyle = it.color;
+      ctx.font = '700 11px "SF Mono","JetBrains Mono",monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('★', lx + 16, iy + 4);
+    } else {
+      ctx.strokeStyle = it.color; ctx.lineWidth = it.label.includes('均值') ? 1.4 : 2;
+      ctx.setLineDash(it.dash ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(lx + 6, iy + 4); ctx.lineTo(lx + 26, iy + 4); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.fillStyle = '#475569'; ctx.font = '10px -apple-system,"PingFang SC",sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(it.label, lx + 30, iy + 4);
