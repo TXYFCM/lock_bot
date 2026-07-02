@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-开发机集群 XPU 资源监控仪表盘。展示 `wxtky02-p800-backup-8nic-vd` 集群（44 节点 × 8 卡，node1~node51）的 XPU 使用率、显存占用率、以及 Lock Bot 平台的资源锁定状态。额外展示 bdc9/19/28 节点通过 Lock Bot 白屏。
+开发机集群 XPU 资源监控仪表盘。展示 `wxtky02-p800-backup-8nic-vd` / `wxtky02-p800-8nic-vd` 集群（48 节点 × 8 卡，node1~node51，排除 node13/14/17）的 XPU 使用率、显存占用率、以及 Lock Bot 平台的资源锁定状态。额外展示 bdc9/19/28 节点通过 Lock Bot 白屏。
 
 纯前端，无构建工具，直接 `node proxy.js` 后浏览器打开。
 
@@ -46,7 +46,7 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
 
 ### 新增节点
 
-编辑 `api.js` 的 `MONITORED_NODES` 数组，将新节点编号加入数组（当前排除 `[13, 14, 17, 33, 36]`）。
+编辑 `api.js` 的 `MONITORED_NODES` 数组，将新节点编号加入数组（当前排除 `[13, 14, 17]`）。
 
 ## 架构
 
@@ -60,7 +60,7 @@ curl -s "http://localhost:8900/monquery/monquery/getItemList?namespaces=wxtky02-
   │   ├─ fetchLockBotOccupancy() → GET  /lockbot/api/bots/{id}/occupancy?date=YYYY-MM-DD
   │   ├─ fetchAllBotStates()     → GET  /lockbot/api/bots/running-states（已定义，当前未使用）
   │   └─ fetchMonqueryUtilization() → GET /monquery/monquery/getHistoryitemdata
-  │                                     (batch 44 nodes × 17 metrics, 300s interval)
+  │                                     (batch 48 nodes × 17 metrics, 300s interval)
   │
   ├─ adapter.js     → 数据适配
   │   ├─ adaptNodeData()  → (lockBotState, monqueryData, nowIdx, botType) → NodeData[]
@@ -206,7 +206,7 @@ Monquery **不支持通配符 namespace**，节点列表必须硬编码维护。
 1. **Canvas 重绘**: `bindCanvasHover()` 渲染后捕获快照，hover 时快照恢复 + 增量画点，避免全路径重绘
 2. **自动刷新**: 每 60 秒 `loadAllData()` 同时请求 Lock Bot + Monquery（`Promise.all`），仅页面可见时执行
 3. **Token 存储**: localStorage 持久化（4 小时过期），页面加载时自动恢复；退出登录时清除
-4. **节点列表硬编码**（5 个无数据节点排除：node13/14/17/33/36，实际监控 node1~node51 共 44 个节点）
+4. **节点列表硬编码**（3 个故障节点排除：node13/14/17，实际监控 node1~node51 共 48 个节点；node32/34/35/37~51 使用非 backup namespace）
 5. **代理**：两个 API 均不支持 CORS，必须通过 `proxy.js` 访问（`http.createServer` + Node.js 内置 `http.request`）
 
 ## 文件职责

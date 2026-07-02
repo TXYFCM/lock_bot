@@ -1,7 +1,7 @@
 # 集群 XPU 资源监控 — API 接口文档
 
 > 数据源：监控 3.0（monquery）  
-> 集群：`wxtky02-p800-backup-8nic-vd`（44 节点 × 8 卡，node1~node51）
+> 集群：`wxtky02-p800-backup-8nic-vd` / `wxtky02-p800-8nic-vd`（48 节点 × 8 卡，node1~node51，排除 node13/14/17）
 
 ---
 
@@ -181,10 +181,10 @@ for c in range(8):
 
 | 项目 | 数值 |
 |------|------|
-| 集群 | `wxtky02-p800-backup-8nic-vd` |
-| 总节点 | 52（node1 ~ node51，含 bdc 系列） |
-| 有监控数据 | 44 |
-| 无数据 | node13, node14, node17, node33, node36 |
+| 集群 | `wxtky02-p800-backup-8nic-vd` / `wxtky02-p800-8nic-vd` |
+| 总节点 | 51（node1 ~ node51） |
+| 有监控数据 | 48 |
+| 排除节点 | node13, node14, node17 |
 | 每节点卡数 | 8 张 XPU |
 
 > monquery 不支持通配符或自动发现 namespace。节点列表需硬编码维护，新增节点时手动追加。
