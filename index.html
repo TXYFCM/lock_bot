@@ -778,7 +778,7 @@ function renderStats() {
     '<div class="stat-card total"><div class="label">总节点</div><div class="value total">' + nodes.length + '</div></div>' +
     '<div class="stat-card total"><div class="label">总卡数</div><div class="value total">' + totalCards + '</div></div>' +
     '<div class="stat-card xpu-avg"><div class="label">XPU平均利用率/峰值利用率</div><div class="value xpu-avg pct">' + avgXpuStr + '</div><span class="tip-icon">?</span><div class="tip-popup">平均利用率：当日10:00至今，所有node节点XPU平均利用率；峰值利用率：当日24小时内，所有node节点XPU平均利用率的最高值</div></div>' +
-    '<div class="stat-card mem-avg"><div class="label">显存平均利用率</div><div class="value mem-avg pct">' + avgMemStr + '</div><span class="tip-icon">?</span><div class="tip-popup">当日10:00至当前已完成槽，所有node节点显存的平均利用率</div></div>';
+    '<div class="stat-card mem-avg"><div class="label">显存平均利用率</div><div class="value mem-avg pct">' + avgMemStr + '</div><span class="tip-icon">?</span><div class="tip-popup">当日10:00至今，所有node节点显存平均利用率</div></div>';
 
   // 第二行：LOCKED节点、BUSY节点、LOCKED卡数、BUSY卡数
   document.getElementById('stats-row-2').innerHTML =
